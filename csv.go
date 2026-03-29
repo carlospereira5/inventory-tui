@@ -33,6 +33,11 @@ func findCSVInRoot() (string, error) {
 	return csvFiles[0], nil
 }
 
+type csvRecord struct {
+	barcode string
+	name    string
+}
+
 func importCSV(db *sql.DB, filePath string) (int, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -47,19 +52,60 @@ func importCSV(db *sql.DB, filePath string) (int, error) {
 		return 0, err
 	}
 
-	count := 0
+	// Producer-Consumer with a channel
+	records := make(chan csvRecord, 100)
+	errChan := make(chan error, 1)
+	countChan := make(chan int)
+
+	// Worker goroutine: handles database insertions
+	go func() {
+		tx, err := db.Begin()
+		if err != nil {
+			errChan <- err
+			return
+		}
+		defer tx.Rollback()
+
+		stmt, err := tx.Prepare(`
+			INSERT INTO products (barcode, name) 
+			VALUES (?, ?) 
+			ON CONFLICT(barcode) DO UPDATE SET name = excluded.name;
+		`)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		defer stmt.Close()
+
+		c := 0
+		for rec := range records {
+			_, err = stmt.Exec(rec.barcode, rec.name)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			c++
+		}
+
+		if err := tx.Commit(); err != nil {
+			errChan <- err
+			return
+		}
+		countChan <- c
+	}()
+
+	// Producer (main loop): reads the CSV and sends records to the channel
+	var parseErr error
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return count, err
+			parseErr = err
+			break
 		}
 
-		// Handle,REF,Nombre,Categoria,Descripción,Vendido por peso,Opción 1 nombre,Opción 1 valor,Opción 2 nombre,Opción 2 valor,Opción 3 nombre,Opción 3 valor,Coste,Codigo de barras,...
-		// Nombre is at index 2
-		// Barcode is at index 13
 		if len(record) < 14 {
 			continue
 		}
@@ -71,14 +117,20 @@ func importCSV(db *sql.DB, filePath string) (int, error) {
 			continue
 		}
 
-		err = upsertProduct(db, barcode, name)
-		if err != nil {
-			return count, err
-		}
-		count++
+		records <- csvRecord{barcode: barcode, name: name}
 	}
+	close(records)
 
-	return count, nil
+	// Wait for worker to finish or for an error
+	select {
+	case err := <-errChan:
+		return 0, err
+	case count := <-countChan:
+		if parseErr != nil {
+			return count, parseErr
+		}
+		return count, nil
+	}
 }
 
 func exportSessionToCSV(db *sql.DB, sessionID int, sessionName string) (string, error) {

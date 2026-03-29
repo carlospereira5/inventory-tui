@@ -33,6 +33,12 @@ func initDB(path string) (*sql.DB, error) {
 		return nil, err
 	}
 
+	// Performance optimizations
+	_, _ = db.Exec("PRAGMA journal_mode = WAL")
+	_, _ = db.Exec("PRAGMA synchronous = NORMAL")
+	_, _ = db.Exec("PRAGMA foreign_keys = ON")
+	_, _ = db.Exec("PRAGMA cache_size = -2000") // 2MB cache
+
 	// Master list of products
 	queryProducts := `
 	CREATE TABLE IF NOT EXISTS products (
@@ -218,7 +224,12 @@ func deleteHistoryRecordInSession(db *sql.DB, id int) error {
 	return err
 }
 
-func upsertProduct(db *sql.DB, barcode, name string) error {
+// Queryer defines a common interface for sql.DB and sql.Tx
+type Queryer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+func upsertProduct(db Queryer, barcode, name string) error {
 	_, err := db.Exec(`
 		INSERT INTO products (barcode, name)
 		VALUES (?, ?)

@@ -127,6 +127,35 @@ func formatTime(sqliteTime string) string {
 	return fmt.Sprintf("%02d de %s  |  %s", t.Day(), mesEsp, t.Format("15:04"))
 }
 
+type csvImportedMsg struct {
+	count int
+	err   error
+	file  string
+}
+
+type sessionsLoadedMsg struct {
+	sessions []InventorySession
+	err      error
+}
+
+func loadSessions(db *sql.DB) tea.Cmd {
+	return func() tea.Msg {
+		sessions, err := getSessions(db)
+		return sessionsLoadedMsg{sessions: sessions, err: err}
+	}
+}
+
+func loadCSV(db *sql.DB) tea.Cmd {
+	return func() tea.Msg {
+		csvFile, err := findCSVInRoot()
+		if err != nil {
+			return csvImportedMsg{err: err}
+		}
+		count, err := importCSV(db, csvFile)
+		return csvImportedMsg{count: count, err: err, file: csvFile}
+	}
+}
+
 func initialModel(db *sql.DB) model {
 	ti := textinput.New()
 	ti.Placeholder = "Escanea el código de barras..."
@@ -139,25 +168,43 @@ func initialModel(db *sql.DB) model {
 	si.CharLimit = 50
 	si.Width = 40
 
-	sessions, _ := getSessions(db)
-
 	return model{
 		state:        stateSessionList,
 		db:           db,
 		textInput:    ti,
 		sessionInput: si,
-		sessions:     sessions,
+		csvStatus:    "Cargando catálogo...",
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return textinput.Blink
+	return tea.Batch(
+		textinput.Blink,
+		loadCSV(m.db),
+		loadSessions(m.db),
+	)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case sessionsLoadedMsg:
+		if msg.err == nil {
+			m.sessions = msg.sessions
+		}
+		return m, nil
+
+	case csvImportedMsg:
+		if msg.err != nil {
+			m.csvStatus = msg.err.Error()
+			m.csvIsError = true
+		} else {
+			m.csvStatus = fmt.Sprintf("CSV cargado: %s (%d productos)", msg.file, msg.count)
+			m.csvIsError = false
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -446,25 +493,7 @@ func main() {
 	}
 	defer db.Close()
 
-	m := initialModel(db)
-
-	// CSV Dynamic Loading
-	csvFile, err := findCSVInRoot()
-	if err != nil {
-		m.csvStatus = err.Error()
-		m.csvIsError = true
-	} else {
-		count, err := importCSV(db, csvFile)
-		if err != nil {
-			m.csvStatus = fmt.Sprintf("Error CSV: %v", err)
-			m.csvIsError = true
-		} else {
-			m.csvStatus = fmt.Sprintf("CSV cargado: %s (%d productos)", csvFile, count)
-			m.csvIsError = false
-		}
-	}
-
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(db), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v", err)
 		os.Exit(1)
