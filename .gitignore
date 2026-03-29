@@ -1,0 +1,18 @@
+# Binarios
+inventory-tui
+
+# Base de Datos local
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Archivos de datos (CSV)
+*.csv
+
+# Dependencias
+vendor/
+
+# Logs y temporales
+*.log
+tmp/
