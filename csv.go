@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 func findCSVInRoot() (string, error) {
@@ -78,4 +79,35 @@ func importCSV(db *sql.DB, filePath string) (int, error) {
 	}
 
 	return count, nil
+}
+
+func exportSessionToCSV(db *sql.DB, sessionID int, sessionName string) (string, error) {
+	records, err := getHistoryInSession(db, sessionID)
+	if err != nil {
+		return "", err
+	}
+
+	// Nombre del archivo basado en la sesión y la fecha
+	cleanName := strings.ReplaceAll(strings.ToLower(sessionName), " ", "_")
+	fileName := fmt.Sprintf("export_%s_%s.csv",
+		cleanName,
+		time.Now().Format("20060102_150405"))
+
+	f, err := os.Create(fileName)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	writer := csv.NewWriter(f)
+	defer writer.Flush()
+
+	// Cabecera del archivo
+	_ = writer.Write([]string{"Codigo de barras", "Nombre", "Cantidad"})
+
+	for _, r := range records {
+		_ = writer.Write([]string{r.Barcode, r.Name, fmt.Sprintf("%d", r.Quantity)})
+	}
+
+	return fileName, nil
 }

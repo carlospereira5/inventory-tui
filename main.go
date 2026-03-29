@@ -199,6 +199,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.lastScanned = nil
 					m.statusMsg = ""
 				}
+			case "e":
+				if len(m.sessions) > 0 {
+					s := m.sessions[m.cursor]
+					fileName, err := exportSessionToCSV(m.db, s.ID, s.Name)
+					if err != nil {
+						m.err = err
+					} else {
+						m.statusMsg = fmt.Sprintf("Exportado: %s", fileName)
+					}
+				}
 			case "n":
 				m.state = stateSessionCreate
 				m.sessionInput.Focus()
@@ -290,6 +300,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "tab":
 				m.state = stateScanning
 				m.textInput.Focus()
+			case "e":
+				fileName, err := exportSessionToCSV(m.db, m.activeSession.ID, m.activeSession.Name)
+				if err != nil {
+					m.err = err
+				} else {
+					m.statusMsg = fmt.Sprintf("Exportado: %s", fileName)
+				}
 			case "up", "k":
 				if m.cursor > 0 {
 					m.cursor--
@@ -341,6 +358,9 @@ func (m model) View() string {
 	switch m.state {
 	case stateSessionList:
 		body = selectedStyle.Render("MENÚ DE SESIONES") + "\n\n"
+		if m.statusMsg != "" {
+			body += statusStyle.Render(m.statusMsg) + "\n\n"
+		}
 		body += "Selecciona o crea una sesión de conteo:\n\n"
 		if len(m.sessions) == 0 {
 			body += " No hay sesiones. Presiona 'N' para crear una.\n\n"
@@ -356,7 +376,7 @@ func (m model) View() string {
 			}
 			body += "\n"
 		}
-		footer = helpStyle.Render("N: Nueva Sesión • Enter: Entrar • D: Borrar • Q: Salir")
+		footer = helpStyle.Render("N: Nueva • Enter: Entrar • E: Exportar • D: Borrar • Q: Salir")
 
 	case stateSessionCreate:
 		body = selectedStyle.Render("NUEVA SESIÓN") + "\n\n"
@@ -377,10 +397,13 @@ func (m model) View() string {
 		if m.statusMsg != "" {
 			body += statusStyle.Render(m.statusMsg) + "\n\n"
 		}
-		footer = helpStyle.Render("Tab: Ver Historial • Esc: Volver al Menú")
+		footer = helpStyle.Render("Tab: Historial • E: Exportar • Esc: Menú")
 
 	case stateHistory:
 		body = itemStyle.Render(fmt.Sprintf("HISTORIAL DE SESIÓN: %s", m.activeSession.Name)) + "\n\n"
+		if m.statusMsg != "" {
+			body += statusStyle.Render(m.statusMsg) + "\n\n"
+		}
 		if len(m.history) == 0 {
 			body += " No hay escaneos en esta sesión.\n\n"
 		} else {
@@ -395,7 +418,7 @@ func (m model) View() string {
 			}
 			body += "\n"
 		}
-		footer = helpStyle.Render("Tab: Volver al Escaneo • D: Borrar • Esc: Volver al Menú")
+		footer = helpStyle.Render("Tab: Escaneo • E: Exportar • D: Borrar • Esc: Menú")
 	}
 
 	if m.err != nil {
