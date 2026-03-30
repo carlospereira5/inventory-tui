@@ -28,15 +28,15 @@ type SessionRepository interface {
 
 // InventoryRepository gestiona los conteos individuales dentro de las sesiones.
 type InventoryRepository interface {
-	// IncrementCount aumenta en 1 la cantidad contada de un código de barras en una sesión específica.
-	IncrementCount(ctx context.Context, sessionID int, barcode string) error
+	// AddScan registra un nuevo evento de escaneo (o ajuste de stock) en la sesión.
+	AddScan(ctx context.Context, sessionID int, barcode string, delta int, source string) error
 
-	// GetRecord busca el registro de conteo específico para un código de barras en una sesión.
+	// GetRecord obtiene el total acumulado para un producto específico en una sesión.
 	GetRecord(ctx context.Context, sessionID int, barcode string) (*entity.Record, error)
 
-	// GetSessionHistory devuelve todos los registros de conteo para una sesión de inventario dada.
+	// GetSessionHistory recupera el historial de TODOS los escaneos individuales en la sesión.
 	GetSessionHistory(ctx context.Context, sessionID int) ([]entity.Record, error)
 
-	// DeleteRecord elimina un registro de conteo específico por su ID único.
-	DeleteRecord(ctx context.Context, id int) error
+	// DeleteScan elimina un registro de escaneo específico del historial.
+	DeleteScan(ctx context.Context, scanID int) error
 }

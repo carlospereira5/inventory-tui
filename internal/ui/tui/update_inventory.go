@@ -54,8 +54,8 @@ func (m Model) handleHistoryKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		if m.Cursor < len(m.History)-1 { m.Cursor++ }
 	case "d", "backspace":
-		if len(m.History) > 0 {
-			_ = m.Service.DeleteRecord(context.Background(), m.History[m.Cursor].ID)
+		if len(m.History) > 0 && m.Cursor < len(m.History) {
+			_ = m.Service.DeleteScan(context.Background(), m.History[m.Cursor].ID)
 			m.History, _ = m.Service.GetHistory(context.Background(), m.ActiveSession.ID)
 			if m.Cursor >= len(m.History) && m.Cursor > 0 { m.Cursor-- }
 		}

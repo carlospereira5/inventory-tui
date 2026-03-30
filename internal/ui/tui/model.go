@@ -3,6 +3,7 @@ package tui
 import (
 	"inventory-tui/internal/application/service"
 	"inventory-tui/internal/domain/entity"
+	"inventory-tui/internal/infrastructure/loyverse"
 
 	"github.com/charmbracelet/bubbles/textinput"
 )
@@ -20,6 +21,7 @@ const (
 // Model representa el estado global de la interfaz de usuario.
 type Model struct {
 	Service        *service.InventoryService
+	Webhook        *loyverse.LoyverseWebhook // Controlador de webhooks para Loyverse.
 	State          State
 	ActiveSession  *entity.Session
 	LastScanned    *entity.Record
@@ -28,7 +30,7 @@ type Model struct {
 	CSVIsError     bool
 	Err            error
 	Sessions       []entity.Session
-	History        []entity.Record
+	History        []entity.Record // Ahora representa escaneos individuales.
 	Cursor         int
 	Width          int
 	Height         int
@@ -37,7 +39,7 @@ type Model struct {
 }
 
 // NewModel inicializa el modelo con sus valores por defecto y sub-componentes.
-func NewModel(svc *service.InventoryService) Model {
+func NewModel(svc *service.InventoryService, webhook *loyverse.LoyverseWebhook) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Escanea el código de barras..."
 	ti.Focus()
@@ -49,6 +51,7 @@ func NewModel(svc *service.InventoryService) Model {
 
 	return Model{
 		Service:      svc,
+		Webhook:      webhook,
 		State:        StateSessionList,
 		TextInput:    ti,
 		SessionInput: si,

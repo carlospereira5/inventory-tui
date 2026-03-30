@@ -43,16 +43,23 @@ func initSchema(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS inventory_sessions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
+			status TEXT DEFAULT 'active',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);`,
-		`CREATE TABLE IF NOT EXISTS inventory_counts (
+		`CREATE TABLE IF NOT EXISTS inventory_scans (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			session_id INTEGER,
 			barcode TEXT,
-			quantity INTEGER DEFAULT 0,
-			UNIQUE(session_id, barcode),
+			quantity_delta INTEGER DEFAULT 1,
+			source TEXT DEFAULT 'SCAN', -- SCAN, LOYVERSE_SALE, MANUAL
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
 		);`,
+		// Vista para ver totales por sesión/producto si es necesario para compatibilidad o reportes rápidos.
+		`CREATE VIEW IF NOT EXISTS inventory_totals AS
+		SELECT session_id, barcode, SUM(quantity_delta) as total
+		FROM inventory_scans
+		GROUP BY session_id, barcode;`,
 	}
 
 	for _, q := range queries {

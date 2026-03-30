@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"inventory-tui/internal/application/service"
 	"inventory-tui/internal/infrastructure/database"
+	"inventory-tui/internal/infrastructure/loyverse"
 	"inventory-tui/internal/infrastructure/storage"
 	"inventory-tui/internal/ui/tui"
 	"log"
+	"net/http"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,9 +31,24 @@ func main() {
 	// 3. Crear el servicio de aplicación que orquesta la lógica.
 	svc := service.NewInventoryService(db.Conn, productRepo, sessionRepo, invRepo, csvStore)
 
-	// 4. Iniciar la interfaz de usuario con Bubble Tea.
-	m := tui.NewModel(svc)
+	// 4. Configurar Webhook de Loyverse para sincronización en tiempo real.
+	loyverseSecret := os.Getenv("LOYVERSE_SECRET")
+	webhook := loyverse.NewLoyverseWebhook(invRepo, loyverseSecret)
+	
+	// Levantamos el servidor de webhooks en segundo plano.
+	go func() {
+		port := os.Getenv("PORT")
+		if port == "" { port = "8080" }
+		http.Handle("/loyverse/webhook", webhook)
+		_ = http.ListenAndServe(":" + port, nil)
+	}()
+
+	// 5. Iniciar la interfaz de usuario con Bubble Tea.
+	m := tui.NewModel(svc, webhook)
 	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	// Asociamos el programa Bubble Tea al webhook para que pueda enviarle mensajes.
+	webhook.SetProgram(p)
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error al ejecutar la aplicación: %v", err)

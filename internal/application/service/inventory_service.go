@@ -48,20 +48,22 @@ func (s *InventoryService) CreateSession(ctx context.Context, name string) (int,
 	return s.sessions.Create(ctx, name)
 }
 
-// ScanProduct busca el producto, incrementa el conteo y devuelve el registro actualizado.
+// ScanProduct busca el producto, añade un nuevo escaneo y devuelve el total actualizado del registro.
 func (s *InventoryService) ScanProduct(ctx context.Context, sessionID int, barcode string) (*entity.Product, *entity.Record, error) {
 	p, err := s.products.FindByBarcode(ctx, barcode)
 	if err != nil || p == nil {
 		return p, nil, err
 	}
-	if err := s.inventory.IncrementCount(ctx, sessionID, barcode); err != nil {
+	// Añadimos el escaneo individual con un delta de 1.
+	if err := s.inventory.AddScan(ctx, sessionID, barcode, 1, "SCAN"); err != nil {
 		return p, nil, err
 	}
+	// GetRecord devolverá el total acumulado del producto para la sesión.
 	rec, err := s.inventory.GetRecord(ctx, sessionID, barcode)
 	return p, rec, err
 }
 
-// GetHistory obtiene el historial completo de conteos para una sesión.
+// GetHistory obtiene el historial completo de TODOS los escaneos realizados en la sesión.
 func (s *InventoryService) GetHistory(ctx context.Context, sessionID int) ([]entity.Record, error) {
 	return s.inventory.GetSessionHistory(ctx, sessionID)
 }
@@ -80,7 +82,21 @@ func (s *InventoryService) DeleteSession(ctx context.Context, id int) error {
 	return s.sessions.Delete(ctx, id)
 }
 
-// DeleteRecord elimina un registro individual de conteo.
-func (s *InventoryService) DeleteRecord(ctx context.Context, id int) error {
-	return s.inventory.DeleteRecord(ctx, id)
+// ScanLoyverseSale registra una venta o devolución de Loyverse como un ajuste de stock en la sesión.
+func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, barcode string, delta int) error {
+	p, err := s.products.FindByBarcode(ctx, barcode)
+	if err != nil || p == nil {
+		return err
+	}
+	// Fix 5: distinguir ventas de devoluciones para auditoría correcta de la DB.
+	source := "LOYVERSE_SALE"
+	if delta > 0 {
+		source = "LOYVERSE_REFUND"
+	}
+	return s.inventory.AddScan(ctx, sessionID, barcode, delta, source)
+}
+
+// DeleteScan elimina un evento de escaneo individual por su ID.
+func (s *InventoryService) DeleteScan(ctx context.Context, id int) error {
+	return s.inventory.DeleteScan(ctx, id)
 }

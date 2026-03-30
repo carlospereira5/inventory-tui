@@ -16,25 +16,22 @@ func NewSQLiteInventoryRepository(db *sql.DB) *SQLiteInventoryRepository {
 	return &SQLiteInventoryRepository{db: db}
 }
 
-// IncrementCount aumenta la cantidad en 1 para un código de barras en una sesión.
-func (r *SQLiteInventoryRepository) IncrementCount(ctx context.Context, sessionID int, barcode string) error {
-	query := `
-		INSERT INTO inventory_counts (session_id, barcode, quantity)
-		VALUES (?, ?, 1)
-		ON CONFLICT(session_id, barcode) DO UPDATE SET quantity = quantity + 1;
-	`
-	_, err := r.db.ExecContext(ctx, query, sessionID, barcode)
+// AddScan registra un nuevo evento de escaneo (o ajuste de stock) en la sesión.
+func (r *SQLiteInventoryRepository) AddScan(ctx context.Context, sessionID int, barcode string, delta int, source string) error {
+	query := `INSERT INTO inventory_scans (session_id, barcode, quantity_delta, source) VALUES (?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, sessionID, barcode, delta, source)
 	return err
 }
 
-// GetRecord obtiene el registro actual de un producto en una sesión específica.
+// GetRecord obtiene el total acumulado para un producto específico en una sesión.
 func (r *SQLiteInventoryRepository) GetRecord(ctx context.Context, sessionID int, barcode string) (*entity.Record, error) {
 	var rec entity.Record
 	query := `
-		SELECT c.id, c.session_id, c.barcode, p.name, c.quantity
-		FROM inventory_counts c
-		JOIN products p ON c.barcode = p.barcode
-		WHERE c.session_id = ? AND c.barcode = ?`
+		SELECT 0, s.session_id, s.barcode, p.name, SUM(s.quantity_delta) as total
+		FROM inventory_scans s
+		JOIN products p ON s.barcode = p.barcode
+		WHERE s.session_id = ? AND s.barcode = ?
+		GROUP BY s.session_id, s.barcode`
 
 	err := r.db.QueryRowContext(ctx, query, sessionID, barcode).
 		Scan(&rec.ID, &rec.SessionID, &rec.Barcode, &rec.Name, &rec.Quantity)
@@ -42,20 +39,18 @@ func (r *SQLiteInventoryRepository) GetRecord(ctx context.Context, sessionID int
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
-	}
-	return &rec, nil
+	return &rec, err
 }
 
-// GetSessionHistory recupera todos los registros contados en una sesión.
+
+// GetSessionHistory recupera el historial de TODOS los escaneos individuales en la sesión.
 func (r *SQLiteInventoryRepository) GetSessionHistory(ctx context.Context, sessionID int) ([]entity.Record, error) {
 	query := `
-		SELECT c.id, c.session_id, c.barcode, p.name, c.quantity
-		FROM inventory_counts c
-		JOIN products p ON c.barcode = p.barcode
-		WHERE c.session_id = ?
-		ORDER BY c.id DESC`
+		SELECT s.id, s.session_id, s.barcode, p.name, s.quantity_delta
+		FROM inventory_scans s
+		JOIN products p ON s.barcode = p.barcode
+		WHERE s.session_id = ?
+		ORDER BY s.created_at DESC`
 
 	rows, err := r.db.QueryContext(ctx, query, sessionID)
 	if err != nil {
@@ -74,9 +69,9 @@ func (r *SQLiteInventoryRepository) GetSessionHistory(ctx context.Context, sessi
 	return records, nil
 }
 
-// DeleteRecord elimina un registro de conteo específico.
-func (r *SQLiteInventoryRepository) DeleteRecord(ctx context.Context, id int) error {
-	query := "DELETE FROM inventory_counts WHERE id = ?"
-	_, err := r.db.ExecContext(ctx, query, id)
+// DeleteScan elimina un registro de escaneo específico del historial.
+func (r *SQLiteInventoryRepository) DeleteScan(ctx context.Context, scanID int) error {
+	query := "DELETE FROM inventory_scans WHERE id = ?"
+	_, err := r.db.ExecContext(ctx, query, scanID)
 	return err
 }

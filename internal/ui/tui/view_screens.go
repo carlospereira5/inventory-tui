@@ -3,62 +3,144 @@ package tui
 import (
 	"fmt"
 	"inventory-tui/internal/ui/tui/styles"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m Model) viewSessionList() (string, string) {
-	body := styles.SelectedStyle.Render("MENÚ DE SESIONES") + "\n\n"
-	if m.StatusMsg != "" { body += styles.Gray.Render(m.StatusMsg) + "\n\n" }
-	body += "Selecciona o crea una sesión de conteo:\n\n"
-	
+	title := styles.SelectedStyle.Render("📁 SESIONES DE INVENTARIO")
+	msg := ""
+	if m.StatusMsg != "" {
+		msg = styles.Gray.Render("ℹ️ " + m.StatusMsg)
+	}
+
+	var rows []string
 	if len(m.Sessions) == 0 {
-		body += " No hay sesiones. Presiona 'N' para crear una.\n\n"
+		rows = append(rows, styles.Gray.Render("  (No hay sesiones. Pulsa 'N' para crear una)"))
 	} else {
 		for i, ses := range m.Sessions {
-			cursor := " "
+			cursor := "  "
+			row := fmt.Sprintf("%s (%s)", ses.Name, ses.CreatedAt)
 			if m.Cursor == i {
-				cursor = ">"
-				body += styles.SelectedStyle.Render(fmt.Sprintf("%s %s (%s)", cursor, ses.Name, ses.CreatedAt)) + "\n"
+				cursor = styles.Blue.Render("▸ ")
+				rows = append(rows, cursor+styles.SelectedStyle.Render(row))
 			} else {
-				body += fmt.Sprintf("%s %s (%s)", cursor, ses.Name, ses.CreatedAt) + "\n"
+				rows = append(rows, cursor+row)
 			}
 		}
 	}
-	return body, styles.HelpStyle.Render("N: Nueva • Enter: Entrar • E: Exportar • D: Borrar • Q: Salir")
+
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		msg,
+		"",
+		strings.Join(rows, "\n"),
+	)
+
+	help := styles.HelpStyle.Render("n: nueva • enter: entrar • e: exportar • d: borrar • q: salir")
+	return body, help
 }
 
 func (m Model) viewSessionCreate() (string, string) {
-	body := styles.SelectedStyle.Render("NUEVA SESIÓN") + "\n\n"
-	body += "Introduce el nombre para la nueva sesión:\n\n"
-	body += m.SessionInput.View() + "\n\n"
-	return body, styles.HelpStyle.Render("Enter: Crear • Esc: Cancelar")
+	title := styles.SelectedStyle.Render("✨ NUEVA SESIÓN")
+	prompt := "Escribe el nombre del almacén o sección:"
+	
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		prompt,
+		"",
+		m.SessionInput.View(),
+	)
+
+	help := styles.HelpStyle.Render("enter: crear • esc: cancelar")
+	return body, help
 }
 
 func (m Model) viewScanning() (string, string) {
-	body := styles.Purple.Render(fmt.Sprintf("SESIÓN ACTIVA: %s", m.ActiveSession.Name)) + "\n\n"
-	body += m.TextInput.View() + "\n\n"
+	// Panel de Sesión
+	sessionInfo := styles.Purple.Render(fmt.Sprintf("📍 %s", m.ActiveSession.Name))
+	
+	// Panel de Escaneo Principal
+	scanBox := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("63")).
+		Padding(1).
+		Width(m.Width / 2).
+		Render(lipgloss.JoinVertical(lipgloss.Left,
+			"🔍 ESCANEANDO...",
+			"",
+			m.TextInput.View(),
+		))
+
+	// Panel Lateral de Info
+	var lastItem string
 	if m.LastScanned != nil {
-		body += "Último producto escaneado:\n"
-		body += styles.Purple.Render(m.LastScanned.Name) + "\n"
-		body += fmt.Sprintf("Código: %s | Cantidad: %d\n\n", m.LastScanned.Barcode, m.LastScanned.Quantity)
+		lastItem = lipgloss.JoinVertical(lipgloss.Left,
+			styles.Green.Render("ÚLTIMO REGISTRO:"),
+			styles.SelectedStyle.Render(m.LastScanned.Name),
+			styles.Gray.Render(fmt.Sprintf("Bar: %s", m.LastScanned.Barcode)),
+			styles.Purple.Render(fmt.Sprintf("Cant. Sesión: %d", m.LastScanned.Quantity)),
+		)
+	} else {
+		lastItem = styles.Gray.Render("Esperando escaneo...")
 	}
-	if m.StatusMsg != "" { body += styles.Gray.Render(m.StatusMsg) + "\n\n" }
-	return body, styles.HelpStyle.Render("Tab: Historial • E: Exportar • Esc: Menú")
+
+	infoBox := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(1).
+		Width(m.Width/3).
+		Render(lastItem)
+
+	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, scanBox, "  ", infoBox)
+
+	status := ""
+	if m.StatusMsg != "" {
+		status = "\n" + styles.Gray.Render("💡 "+m.StatusMsg)
+	}
+
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		sessionInfo,
+		"",
+		mainContent,
+		status,
+	)
+
+	help := styles.HelpStyle.Render("tab: ver historial • e: exportar • esc: menú")
+	return body, help
 }
 
 func (m Model) viewHistory() (string, string) {
-	body := styles.Purple.Render(fmt.Sprintf("HISTORIAL DE SESIÓN: %s", m.ActiveSession.Name)) + "\n\n"
+	title := styles.Purple.Render(fmt.Sprintf("📜 HISTORIAL: %s", m.ActiveSession.Name))
+	
+	var rows []string
 	if len(m.History) == 0 {
-		body += " No hay escaneos en esta sesión.\n\n"
+		rows = append(rows, "  (Sin movimientos)")
 	} else {
 		for i, r := range m.History {
-			cursor := " "
+			cursor := "  "
+			icon := "📦"
+			if r.Quantity < 0 { icon = "🛒" } // Representa una venta de Loyverse
+			
+			row := fmt.Sprintf("%s %-20s | %d | %s", icon, r.Name, r.Quantity, r.Barcode)
 			if m.Cursor == i {
-				cursor = ">"
-				body += styles.SelectedStyle.Render(fmt.Sprintf("%s %s: %d (Bar: %s)", cursor, r.Name, r.Quantity, r.Barcode)) + "\n"
+				cursor = styles.Blue.Render("▸ ")
+				rows = append(rows, cursor+styles.SelectedStyle.Render(row))
 			} else {
-				body += fmt.Sprintf("%s %s: %d (Bar: %s)", cursor, r.Name, r.Quantity, r.Barcode) + "\n"
+				rows = append(rows, cursor+row)
 			}
 		}
 	}
-	return body, styles.HelpStyle.Render("Tab: Escaneo • D: Borrar • Esc: Menú")
+
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		strings.Join(rows, "\n"),
+	)
+
+	help := styles.HelpStyle.Render("tab: volver a escaneo • d: borrar entrada • esc: menú")
+	return body, help
 }
