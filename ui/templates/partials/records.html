@@ -1,0 +1,80 @@
+{{ define "partials/records" }}
+<div id="records-table"
+     hx-get="/partials/records/{{ .SessionID }}"
+     hx-trigger="every 5s, sse:sale"
+     hx-swap="outerHTML"
+     hx-indicator="#refresh-indicator">
+
+  {{ if .Records }}
+  <div class="border border-gray-200">
+
+    <!-- Header -->
+    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        {{ len .Records }} movimiento{{ if gt (len .Records) 1 }}s{{ end }}
+      </span>
+    </div>
+
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 bg-gray-50">
+          <th class="text-left px-4 py-2.5 font-semibold text-gray-400 text-xs uppercase tracking-wider">Producto</th>
+          <th class="text-left px-4 py-2.5 font-semibold text-gray-400 text-xs uppercase tracking-wider hidden sm:table-cell">Código</th>
+          <th class="text-center px-4 py-2.5 font-semibold text-gray-400 text-xs uppercase tracking-wider">Origen</th>
+          <th class="text-right px-4 py-2.5 font-semibold text-gray-400 text-xs uppercase tracking-wider">Δ</th>
+          <th class="px-4 py-2.5 w-10"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Records }}
+        <tr id="scan-{{ .ID }}"
+            class="border-b border-gray-50 hover:bg-gray-50 transition-colors group">
+
+          <td class="px-4 py-3 font-medium text-black max-w-[200px] truncate">{{ .Name }}</td>
+
+          <td class="px-4 py-3 font-mono text-xs text-gray-400 hidden sm:table-cell">{{ .Barcode }}</td>
+
+          <td class="px-4 py-3 text-center">
+            {{ if eq .Source "LOYVERSE_SALE" }}
+              <span class="inline-flex items-center px-2 py-0.5 border border-gray-300 text-xs font-medium text-gray-600">venta</span>
+            {{ else if eq .Source "LOYVERSE_REFUND" }}
+              <span class="inline-flex items-center px-2 py-0.5 border border-gray-300 text-xs font-medium text-gray-600">devol.</span>
+            {{ else }}
+              <span class="inline-flex items-center px-2 py-0.5 border border-gray-200 text-xs font-medium text-gray-400">scan</span>
+            {{ end }}
+          </td>
+
+          <td class="px-4 py-3 text-right font-mono font-bold">
+            {{ if lt .Quantity 0 }}
+              <span class="text-black">{{ .Quantity }}</span>
+            {{ else }}
+              <span class="text-black">+{{ .Quantity }}</span>
+            {{ end }}
+          </td>
+
+          <td class="px-4 py-3 text-center">
+            <button
+              hx-delete="/api/scans/{{ .ID }}"
+              hx-target="#scan-{{ .ID }}"
+              hx-swap="outerHTML swap:200ms"
+              hx-confirm="¿Eliminar este registro?"
+              class="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-black transition-all duration-150 text-xs">
+              ✕
+            </button>
+          </td>
+
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+
+  {{ else }}
+  <div class="border border-dashed border-gray-200 flex flex-col items-center justify-center py-20 text-gray-300">
+    <p class="text-sm font-medium text-gray-400">Sin movimientos</p>
+    <p class="text-xs mt-1">Escaneá productos para comenzar</p>
+  </div>
+  {{ end }}
+
+</div>
+{{ end }}

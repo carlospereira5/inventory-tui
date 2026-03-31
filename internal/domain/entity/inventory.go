@@ -20,5 +20,6 @@ type Record struct {
 	SessionID int    // ID de la sesión a la que pertenece este registro.
 	Barcode   string // Código de barras del producto contado.
 	Name      string // Nombre del producto (unido desde el catálogo maestro).
-	Quantity  int    // Cantidad total contada para este producto en la sesión.
+	Quantity  int    // Delta de cantidad para este evento (positivo = entrada, negativo = venta).
+	Source    string // Origen del registro: "SCAN", "LOYVERSE_SALE", "LOYVERSE_REFUND".
 }

@@ -1,0 +1,32 @@
+{{ define "partials/scan-result" }}
+{{ if .ScanError }}
+<div class="border-l-4 border-black bg-gray-50 p-4">
+  <p class="font-semibold text-black text-sm">Error al escanear</p>
+  <p class="text-xs text-gray-500 mt-1 font-mono">{{ .ScanError }}</p>
+</div>
+
+{{ else if .Product }}
+<div class="border-l-4 border-black bg-gray-50 p-4 flash">
+  <p class="font-bold text-black truncate">{{ .Product.Name }}</p>
+  <p class="text-xs text-gray-400 font-mono mt-0.5">{{ .Product.Barcode }}</p>
+  {{ if .Record }}
+  <div class="mt-3 flex items-center gap-2">
+    <span class="text-xs text-gray-500">Total sesión:</span>
+    <span class="px-2 py-0.5 bg-black text-white text-xs font-bold font-mono">{{ .Record.Quantity }}</span>
+  </div>
+  {{ end }}
+</div>
+
+{{ else }}
+<div class="border-l-4 border-gray-300 bg-gray-50 p-4">
+  <p class="font-semibold text-gray-700 text-sm">No encontrado</p>
+  <p class="text-xs text-gray-400 font-mono mt-1">{{ .Barcode }}</p>
+  <p class="text-xs text-gray-400 mt-1">Verificá que el código esté en el catálogo CSV</p>
+</div>
+{{ end }}
+
+<!-- OOB: actualiza la tabla de historial -->
+<div id="records-table" hx-swap-oob="outerHTML">
+  {{ template "partials/records" . }}
+</div>
+{{ end }}

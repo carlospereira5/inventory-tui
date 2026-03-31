@@ -1,0 +1,28 @@
+{{ define "partials/new-session-form" }}
+<div class="border border-black p-6 mb-2">
+  <div class="flex items-center justify-between mb-4">
+    <p class="text-sm font-bold text-black">Nueva sesión</p>
+    <button
+      hx-get="/partials/sessions"
+      hx-target="#form-slot"
+      hx-swap="innerHTML"
+      class="text-gray-400 hover:text-black transition-colors text-sm">✕</button>
+  </div>
+  <form
+    hx-post="/api/sessions"
+    hx-target="#form-slot"
+    hx-swap="innerHTML"
+    class="flex gap-3">
+    <input
+      type="text"
+      name="name"
+      autofocus
+      placeholder="Ej: Almacén, Góndola 3..."
+      class="flex-1 px-4 py-2.5 border-2 border-gray-200 focus:border-black bg-white text-sm outline-none transition-colors"/>
+    <button type="submit"
+      class="px-5 py-2.5 bg-black text-white text-sm font-bold hover:bg-gray-800 transition-colors">
+      Crear
+    </button>
+  </form>
+</div>
+{{ end }}

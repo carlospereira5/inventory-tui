@@ -10,6 +10,10 @@ type ProductRepository interface {
 	// FindByBarcode busca un producto por su código de barras único.
 	FindByBarcode(ctx context.Context, barcode string) (*entity.Product, error)
 
+	// FindByName busca un producto por su nombre exacto.
+	// Usado por el webhook de Loyverse, que no expone barcode en line_items.
+	FindByName(ctx context.Context, name string) (*entity.Product, error)
+
 	// Upsert inserta un producto o lo actualiza si ya existe (basado en el código de barras).
 	Upsert(ctx context.Context, product *entity.Product) error
 }

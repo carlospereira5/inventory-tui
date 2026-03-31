@@ -1,0 +1,46 @@
+{{ define "partials/session-cards" }}
+{{ if .Sessions }}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {{ range .Sessions }}
+  <div id="session-card-{{ .ID }}"
+       class="group border border-gray-200 p-5 flex flex-col gap-4 hover:border-black transition-colors duration-150">
+
+    <!-- Nombre + fecha -->
+    <div class="flex-1">
+      <p class="font-bold text-black truncate text-base">{{ .Name }}</p>
+      <p class="text-xs text-gray-400 mt-1 font-mono">{{ .CreatedAt }}</p>
+    </div>
+
+    <!-- Acciones -->
+    <div class="flex items-center gap-2 pt-3 border-t border-gray-100">
+      <a href="/session/{{ .ID }}"
+         class="flex-1 text-center py-2 bg-black text-white text-xs font-bold hover:bg-gray-800 transition-colors">
+        Abrir →
+      </a>
+      <a href="/api/sessions/{{ .ID }}/export"
+         hx-boost="false"
+         class="p-2 border border-gray-200 text-gray-500 hover:border-black hover:text-black text-xs transition-colors"
+         title="Exportar CSV">
+        ↓
+      </a>
+      <button
+        hx-delete="/api/sessions/{{ .ID }}"
+        hx-target="#session-card-{{ .ID }}"
+        hx-swap="outerHTML swap:300ms"
+        hx-confirm="¿Eliminar '{{ .Name }}' y todos sus registros?"
+        class="p-2 border border-gray-200 text-gray-400 hover:border-black hover:text-black text-xs transition-colors"
+        title="Eliminar">
+        ✕
+      </button>
+    </div>
+  </div>
+  {{ end }}
+</div>
+
+{{ else }}
+<div class="flex flex-col items-center justify-center py-24 border border-dashed border-gray-200">
+  <p class="font-semibold text-gray-500 mb-1">Sin sesiones</p>
+  <p class="text-sm text-gray-400">Creá una nueva sesión para comenzar el conteo</p>
+</div>
+{{ end }}
+{{ end }}

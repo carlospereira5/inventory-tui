@@ -1,0 +1,46 @@
+{{ define "index" }}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventario</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    * { -webkit-font-smoothing: antialiased; }
+    .htmx-swapping { opacity: 0; transition: opacity 100ms ease-out; }
+    .htmx-settling { opacity: 1; transition: opacity 150ms ease-in; }
+  </style>
+</head>
+<body class="min-h-screen bg-white" hx-boost="true">
+
+  <!-- NAV -->
+  <nav class="bg-black border-b border-black">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-white font-bold tracking-tight text-lg">INVENTARIO</span>
+      </div>
+      <button
+        hx-get="/partials/new-session-form"
+        hx-target="#form-slot"
+        hx-swap="innerHTML"
+        class="flex items-center gap-2 px-4 py-2 bg-white text-black text-sm font-bold hover:bg-gray-100 transition-colors">
+        + Nueva sesión
+      </button>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto px-6 py-8">
+
+    <div id="form-slot" class="mb-8"></div>
+
+    <div id="sessions-grid">
+      {{ template "partials/session-cards" . }}
+    </div>
+
+  </main>
+
+</body>
+</html>
+{{ end }}

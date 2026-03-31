@@ -82,18 +82,24 @@ func (s *InventoryService) DeleteSession(ctx context.Context, id int) error {
 	return s.sessions.Delete(ctx, id)
 }
 
-// ScanLoyverseSale registra una venta o devolución de Loyverse como un ajuste de stock en la sesión.
-func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, barcode string, delta int) error {
-	p, err := s.products.FindByBarcode(ctx, barcode)
-	if err != nil || p == nil {
+// ScanLoyverseSale descuenta del stock de la sesión cuando Loyverse reporta una venta.
+// name debe coincidir exactamente con el nombre del producto en el catálogo CSV.
+// Solo actúa si el producto ya fue escaneado manualmente en la sesión (rec != nil).
+func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, name string, delta int) error {
+	// Bug 3 fix: el webhook expone item_name, no barcode. Resolvemos el producto por nombre.
+	p, err := s.products.FindByName(ctx, name)
+	if err != nil {
 		return err
 	}
-	// Fix 5: distinguir ventas de devoluciones para auditoría correcta de la DB.
+	if p == nil {
+		return nil // producto no encontrado en catálogo — mismatch de nombres, ignorar silenciosamente
+	}
+
 	source := "LOYVERSE_SALE"
 	if delta > 0 {
 		source = "LOYVERSE_REFUND"
 	}
-	return s.inventory.AddScan(ctx, sessionID, barcode, delta, source)
+	return s.inventory.AddScan(ctx, sessionID, p.Barcode, delta, source)
 }
 
 // DeleteScan elimina un evento de escaneo individual por su ID.

@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"inventory-tui/internal/infrastructure/loyverse"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -11,18 +10,6 @@ import (
 // Update es el corazón de la lógica de Bubble Tea, despacha mensajes a manejadores específicos.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
-	case loyverse.MsgLoyverseSale:
-		if m.ActiveSession != nil {
-			// Si hay una venta en Loyverse, la descontamos automáticamente de nuestro inventario activo.
-			_ = m.Service.ScanLoyverseSale(context.Background(), m.ActiveSession.ID, msg.Barcode, msg.Delta)
-			// Refrescar historial si estamos en esa pantalla.
-			if m.State == StateScanning || m.State == StateHistory {
-				m.History, _ = m.Service.GetHistory(context.Background(), m.ActiveSession.ID)
-				m.StatusMsg = fmt.Sprintf("⚠️ Loyverse: %s (%d)", msg.Name, msg.Delta)
-			}
-		}
-		return m, nil
 
 	case MsgCatalogLoaded: // Informa si el catálogo CSV se cargó correctamente.
 		if msg.Err != nil {

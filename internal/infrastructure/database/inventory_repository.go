@@ -46,7 +46,7 @@ func (r *SQLiteInventoryRepository) GetRecord(ctx context.Context, sessionID int
 // GetSessionHistory recupera el historial de TODOS los escaneos individuales en la sesión.
 func (r *SQLiteInventoryRepository) GetSessionHistory(ctx context.Context, sessionID int) ([]entity.Record, error) {
 	query := `
-		SELECT s.id, s.session_id, s.barcode, p.name, s.quantity_delta
+		SELECT s.id, s.session_id, s.barcode, p.name, s.quantity_delta, s.source
 		FROM inventory_scans s
 		JOIN products p ON s.barcode = p.barcode
 		WHERE s.session_id = ?
@@ -61,7 +61,7 @@ func (r *SQLiteInventoryRepository) GetSessionHistory(ctx context.Context, sessi
 	var records []entity.Record
 	for rows.Next() {
 		var rec entity.Record
-		if err := rows.Scan(&rec.ID, &rec.SessionID, &rec.Barcode, &rec.Name, &rec.Quantity); err != nil {
+		if err := rows.Scan(&rec.ID, &rec.SessionID, &rec.Barcode, &rec.Name, &rec.Quantity, &rec.Source); err != nil {
 			return nil, err
 		}
 		records = append(records, rec)

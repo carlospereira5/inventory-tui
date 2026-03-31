@@ -31,6 +31,21 @@ func (r *SQLiteProductRepository) FindByBarcode(ctx context.Context, barcode str
 	return &p, nil
 }
 
+// FindByName busca un producto por nombre exacto.
+// La búsqueda es case-sensitive; el nombre debe coincidir exactamente con el importado desde CSV.
+func (r *SQLiteProductRepository) FindByName(ctx context.Context, name string) (*entity.Product, error) {
+	var p entity.Product
+	query := "SELECT id, barcode, name FROM products WHERE name = ?"
+	err := r.db.QueryRowContext(ctx, query, name).Scan(&p.ID, &p.Barcode, &p.Name)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 // Upsert inserta un nuevo producto o actualiza el nombre si el código de barras ya existe.
 func (r *SQLiteProductRepository) Upsert(ctx context.Context, p *entity.Product) error {
 	query := `
