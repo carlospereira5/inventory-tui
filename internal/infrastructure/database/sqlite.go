@@ -55,6 +55,19 @@ func initSchema(db *sql.DB) error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
 		);`,
+		// Tabla para grupos personalizados de productos (descuentos Loyverse).
+		`CREATE TABLE IF NOT EXISTS custom_groups (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			group_name TEXT NOT NULL UNIQUE
+		);`,
+		// Tabla junction para relacionar grupos con productos.
+		`CREATE TABLE IF NOT EXISTS custom_group_products (
+			group_id INTEGER NOT NULL,
+			product_id INTEGER NOT NULL,
+			PRIMARY KEY (group_id, product_id),
+			FOREIGN KEY(group_id) REFERENCES custom_groups(id) ON DELETE CASCADE,
+			FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+		);`,
 		// Vista para ver totales por sesión/producto si es necesario para compatibilidad o reportes rápidos.
 		`CREATE VIEW IF NOT EXISTS inventory_totals AS
 		SELECT session_id, barcode, SUM(quantity_delta) as total

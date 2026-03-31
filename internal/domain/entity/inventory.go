@@ -22,4 +22,29 @@ type Record struct {
 	Name      string // Nombre del producto (unido desde el catálogo maestro).
 	Quantity  int    // Delta de cantidad para este evento (positivo = entrada, negativo = venta).
 	Source    string // Origen del registro: "SCAN", "LOYVERSE_SALE", "LOYVERSE_REFUND".
+	CreatedAt string // Fecha y hora del evento en formato ISO8601.
+}
+
+// LoyverseEvent representa una venta o devolución reportada por Loyverse.
+type LoyverseEvent struct {
+	ID        int
+	SessionID int
+	Name      string // Nombre del producto (resuelto por el servicio).
+	Quantity  int    // Cantidad vendida (negativo) o devuelta (positivo).
+	Source    string // "LOYVERSE_SALE" o "LOYVERSE_REFUND".
+	CreatedAt string // Fecha del ticket en formato ISO8601.
+}
+
+// SessionTotals representa el total contado por producto en una sesión.
+type SessionTotals struct {
+	Barcode  string
+	Name     string
+	Quantity int
+}
+
+// CustomGroup representa un grupo personalizado de productos para descuentos de Loyverse.
+type CustomGroup struct {
+	ID         int
+	GroupName  string // Nombre descriptivo del grupo.
+	ProductIDs []int  // IDs de los productos que pertenecen a este grupo.
 }

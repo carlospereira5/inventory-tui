@@ -35,6 +35,8 @@ func (m Model) View() string {
 		body, footer = m.viewScanning()
 	case StateHistory:
 		body, footer = m.viewHistory()
+	case StateLoyverse:
+		body, footer = m.viewLoyverse()
 	}
 
 	if m.Err != nil {

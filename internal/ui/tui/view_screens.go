@@ -46,7 +46,7 @@ func (m Model) viewSessionList() (string, string) {
 func (m Model) viewSessionCreate() (string, string) {
 	title := styles.SelectedStyle.Render("✨ NUEVA SESIÓN")
 	prompt := "Escribe el nombre del almacén o sección:"
-	
+
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		title,
 		"",
@@ -62,7 +62,7 @@ func (m Model) viewSessionCreate() (string, string) {
 func (m Model) viewScanning() (string, string) {
 	// Panel de Sesión
 	sessionInfo := styles.Purple.Render(fmt.Sprintf("📍 %s", m.ActiveSession.Name))
-	
+
 	// Panel de Escaneo Principal
 	scanBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
@@ -82,7 +82,7 @@ func (m Model) viewScanning() (string, string) {
 			styles.Green.Render("ÚLTIMO REGISTRO:"),
 			styles.SelectedStyle.Render(m.LastScanned.Name),
 			styles.Gray.Render(fmt.Sprintf("Bar: %s", m.LastScanned.Barcode)),
-			styles.Purple.Render(fmt.Sprintf("Cant. Sesión: %d", m.LastScanned.Quantity)),
+			styles.Purple.Render(fmt.Sprintf("Contador: %d", m.ConsecutiveCount)),
 		)
 	} else {
 		lastItem = styles.Gray.Render("Esperando escaneo...")
@@ -92,7 +92,7 @@ func (m Model) viewScanning() (string, string) {
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1).
-		Width(m.Width/3).
+		Width(m.Width / 3).
 		Render(lastItem)
 
 	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, scanBox, "  ", infoBox)
@@ -109,13 +109,13 @@ func (m Model) viewScanning() (string, string) {
 		status,
 	)
 
-	help := styles.HelpStyle.Render("tab: ver historial • e: exportar • esc: menú")
+	help := styles.HelpStyle.Render("tab: ver totales • e: exportar • esc: menú")
 	return body, help
 }
 
 func (m Model) viewHistory() (string, string) {
 	title := styles.Purple.Render(fmt.Sprintf("📜 HISTORIAL: %s", m.ActiveSession.Name))
-	
+
 	var rows []string
 	if len(m.History) == 0 {
 		rows = append(rows, "  (Sin movimientos)")
@@ -123,8 +123,10 @@ func (m Model) viewHistory() (string, string) {
 		for i, r := range m.History {
 			cursor := "  "
 			icon := "📦"
-			if r.Quantity < 0 { icon = "🛒" } // Representa una venta de Loyverse
-			
+			if r.Quantity < 0 {
+				icon = "🛒"
+			} // Representa una venta de Loyverse
+
 			row := fmt.Sprintf("%s %-20s | %d | %s", icon, r.Name, r.Quantity, r.Barcode)
 			if m.Cursor == i {
 				cursor = styles.Blue.Render("▸ ")
@@ -142,5 +144,60 @@ func (m Model) viewHistory() (string, string) {
 	)
 
 	help := styles.HelpStyle.Render("tab: volver a escaneo • d: borrar entrada • esc: menú")
+	return body, help
+}
+
+func (m Model) viewLoyverse() (string, string) {
+	title := styles.Purple.Render(fmt.Sprintf("📊 TOTALES Y LOYVERSE: %s", m.ActiveSession.Name))
+
+	// Panel izquierdo: Tabla de totales por producto
+	var totalsRows []string
+	totalsRows = append(totalsRows, styles.Green.Render("📦 PRODUCTO              | CANTIDAD"))
+	if len(m.Totals) == 0 {
+		totalsRows = append(totalsRows, styles.Gray.Render("  (Sin productos contados)"))
+	} else {
+		for _, t := range m.Totals {
+			row := fmt.Sprintf("  %-22s | %d", t.Name, t.Quantity)
+			totalsRows = append(totalsRows, row)
+		}
+	}
+	totalsBox := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("63")).
+		Padding(1).
+		Width(m.Width/2 - 2).
+		Render(strings.Join(totalsRows, "\n"))
+
+	// Panel derecho: Eventos de Loyverse en orden cronológico
+	var eventsRows []string
+	eventsRows = append(eventsRows, styles.Green.Render("🛒 EVENTOS LOYVERSE"))
+	if len(m.LoyverseEvents) == 0 {
+		eventsRows = append(eventsRows, styles.Gray.Render("  (Sin eventos de Loyverse)"))
+	} else {
+		for _, e := range m.LoyverseEvents {
+			icon := "🔻"
+			if e.Quantity > 0 {
+				icon = "🔺"
+			}
+			row := fmt.Sprintf("%s %-18s | %d | %s", icon, e.Name, e.Quantity, e.CreatedAt)
+			eventsRows = append(eventsRows, row)
+		}
+	}
+	eventsBox := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(1).
+		Width(m.Width/2 - 2).
+		Render(strings.Join(eventsRows, "\n"))
+
+	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, totalsBox, "  ", eventsBox)
+
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		mainContent,
+	)
+
+	help := styles.HelpStyle.Render("tab: ver historial • esc: menú")
 	return body, help
 }

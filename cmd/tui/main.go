@@ -22,9 +22,10 @@ func main() {
 	productRepo := database.NewSQLiteProductRepository(db.Conn)
 	sessionRepo := database.NewSQLiteSessionRepository(db.Conn)
 	invRepo := database.NewSQLiteInventoryRepository(db.Conn)
-	csvStore := storage.NewCSVStorage(productRepo)
+	groupRepo := database.NewSQLiteCustomGroupRepository(db.Conn)
+	csvStore := storage.NewCSVStorage(productRepo, groupRepo)
 
-	svc := service.NewInventoryService(db.Conn, productRepo, sessionRepo, invRepo, csvStore)
+	svc := service.NewInventoryService(db.Conn, productRepo, sessionRepo, invRepo, groupRepo, csvStore)
 
 	m := tui.NewModel(svc)
 	p := tea.NewProgram(m, tea.WithAltScreen())

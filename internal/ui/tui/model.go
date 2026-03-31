@@ -12,28 +12,32 @@ type State int
 
 const (
 	StateSessionList   State = iota // Lista de sesiones existentes.
-	StateSessionCreate               // Formulario para crear una nueva sesión.
-	StateScanning                    // Pantalla de escaneo de productos.
-	StateHistory                     // Historial de escaneos en la sesión actual.
+	StateSessionCreate              // Formulario para crear una nueva sesión.
+	StateScanning                   // Pantalla de escaneo de productos.
+	StateHistory                    // Historial de escaneos en la sesión actual.
+	StateLoyverse                   // Pantalla de totales y eventos de Loyverse.
 )
 
 // Model representa el estado global de la interfaz de usuario.
 type Model struct {
-	Service       *service.InventoryService
-	State         State
-	ActiveSession *entity.Session
-	LastScanned   *entity.Record
-	StatusMsg     string
-	CSVStatus     string
-	CSVIsError    bool
-	Err           error
-	Sessions      []entity.Session
-	History       []entity.Record
-	Cursor        int
-	Width         int
-	Height        int
-	TextInput     textinput.Model
-	SessionInput  textinput.Model
+	Service          *service.InventoryService
+	State            State
+	ActiveSession    *entity.Session
+	LastScanned      *entity.Record
+	ConsecutiveCount int
+	StatusMsg        string
+	CSVStatus        string
+	CSVIsError       bool
+	Err              error
+	Sessions         []entity.Session
+	History          []entity.Record
+	Totals           []entity.SessionTotals
+	LoyverseEvents   []entity.LoyverseEvent
+	Cursor           int
+	Width            int
+	Height           int
+	TextInput        textinput.Model
+	SessionInput     textinput.Model
 }
 
 // NewModel inicializa el modelo con sus valores por defecto y sub-componentes.

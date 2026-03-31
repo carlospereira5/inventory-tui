@@ -43,4 +43,31 @@ type InventoryRepository interface {
 
 	// DeleteScan elimina un registro de escaneo específico del historial.
 	DeleteScan(ctx context.Context, scanID int) error
+
+	// GetSessionTotals devuelve el total acumulado por producto en una sesión.
+	GetSessionTotals(ctx context.Context, sessionID int) ([]entity.SessionTotals, error)
+
+	// GetLoyverseEvents devuelve solo los eventos de Loyverse (ventas y refunds) de una sesión.
+	GetLoyverseEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error)
+}
+
+// CustomGroupRepository gestiona los grupos personalizados de productos para descuentos de Loyverse.
+type CustomGroupRepository interface {
+	// CreateGroup crea un nuevo grupo con los IDs de productos especificados.
+	CreateGroup(ctx context.Context, groupName string, productIDs []int) error
+
+	// GetGroupByName busca un grupo por su nombre.
+	GetGroupByName(ctx context.Context, groupName string) (*entity.CustomGroup, error)
+
+	// GetAllGroups devuelve todos los grupos existentes.
+	GetAllGroups(ctx context.Context) ([]entity.CustomGroup, error)
+
+	// DeleteGroup elimina un grupo por su ID.
+	DeleteGroup(ctx context.Context, groupID int) error
+
+	// IsProductInGroup verifica si un producto pertenece a un grupo específico.
+	IsProductInGroup(ctx context.Context, groupID int, productID int) (bool, error)
+
+	// GetGroupsForProduct devuelve todos los grupos que contienen un producto.
+	GetGroupsForProduct(ctx context.Context, productID int) ([]entity.CustomGroup, error)
 }

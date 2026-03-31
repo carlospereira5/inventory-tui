@@ -11,19 +11,41 @@ import (
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
-	case MsgCatalogLoaded: // Informa si el catálogo CSV se cargó correctamente.
-		if msg.Err != nil {
-			m.CSVStatus = fmt.Sprintf("Catálogo fallido: %v", msg.Err)
-			m.CSVIsError = true
+	case MsgCatalogLoaded: // Informa si el catálogo o grupos CSV se cargaron correctamente.
+		if msg.IsCatalog {
+			if msg.Err != nil {
+				m.CSVStatus = fmt.Sprintf("Catálogo fallido: %v", msg.Err)
+				m.CSVIsError = true
+			} else {
+				m.CSVStatus = fmt.Sprintf("Catálogo: %s (%d p)", msg.File, msg.Count)
+				m.CSVIsError = false
+			}
 		} else {
-			m.CSVStatus = fmt.Sprintf("Catálogo listo: %s (%d p)", msg.File, msg.Count)
-			m.CSVIsError = false
+			if msg.Err != nil {
+				m.CSVStatus = fmt.Sprintf("Grupos fallido: %v", msg.Err)
+				m.CSVIsError = true
+			} else {
+				m.CSVStatus = fmt.Sprintf("Grupos: %s (%d g)", msg.File, msg.Count)
+				m.CSVIsError = false
+			}
 		}
 		return m, nil
 
 	case MsgSessionsLoaded: // Carga las sesiones en el menú principal.
 		if msg.Err == nil {
 			m.Sessions = msg.Sessions
+		}
+		return m, nil
+
+	case MsgTotalsLoaded: // Carga los totales de la sesión activa.
+		if msg.Err == nil {
+			m.Totals = msg.Totals
+		}
+		return m, nil
+
+	case MsgLoyverseEventsLoaded: // Carga los eventos de Loyverse de la sesión activa.
+		if msg.Err == nil {
+			m.LoyverseEvents = msg.Events
 		}
 		return m, nil
 
@@ -53,6 +75,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleScanningKeys(msg)
 	case StateHistory:
 		return m.handleHistoryKeys(msg)
+	case StateLoyverse:
+		return m.handleLoyverseKeys(msg)
 	}
 
 	return m, nil

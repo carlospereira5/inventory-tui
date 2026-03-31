@@ -8,11 +8,24 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// MsgTotalsLoaded informa que los totales de la sesión están listos.
+type MsgTotalsLoaded struct {
+	Totals []entity.SessionTotals
+	Err    error
+}
+
+// MsgLoyverseEventsLoaded informa que los eventos de Loyverse están listos.
+type MsgLoyverseEventsLoaded struct {
+	Events []entity.LoyverseEvent
+	Err    error
+}
+
 // MsgCatalogLoaded informa que el CSV de productos se ha procesado.
 type MsgCatalogLoaded struct {
-	Count int
-	File  string
-	Err   error
+	Count     int
+	File      string
+	Err       error
+	IsCatalog bool // true = catálogo, false = grupos
 }
 
 // MsgSessionsLoaded informa que la lista de sesiones está lista.
@@ -25,7 +38,7 @@ type MsgSessionsLoaded struct {
 func (m Model) CmdLoadCatalog() tea.Cmd {
 	return func() tea.Msg {
 		count, file, err := m.Service.LoadCatalog(context.Background())
-		return MsgCatalogLoaded{Count: count, File: file, Err: err}
+		return MsgCatalogLoaded{Count: count, File: file, Err: err, IsCatalog: true}
 	}
 }
 
@@ -37,10 +50,41 @@ func (m Model) CmdLoadSessions() tea.Cmd {
 	}
 }
 
+// CmdLoadGroups inicia la búsqueda e importación del CSV de grupos personalizados.
+func (m Model) CmdLoadGroups() tea.Cmd {
+	return func() tea.Msg {
+		count, file, err := m.Service.LoadGroups(context.Background())
+		return MsgCatalogLoaded{Count: count, File: file, Err: err, IsCatalog: false}
+	}
+}
+
+// CmdLoadTotals recupera los totales de la sesión activa.
+func (m Model) CmdLoadTotals() tea.Cmd {
+	return func() tea.Msg {
+		if m.ActiveSession == nil {
+			return MsgTotalsLoaded{Totals: nil, Err: nil}
+		}
+		totals, err := m.Service.GetSessionTotals(context.Background(), m.ActiveSession.ID)
+		return MsgTotalsLoaded{Totals: totals, Err: err}
+	}
+}
+
+// CmdLoadLoyverseEvents recupera los eventos de Loyverse de la sesión activa.
+func (m Model) CmdLoadLoyverseEvents() tea.Cmd {
+	return func() tea.Msg {
+		if m.ActiveSession == nil {
+			return MsgLoyverseEventsLoaded{Events: nil, Err: nil}
+		}
+		events, err := m.Service.GetLoyverseEvents(context.Background(), m.ActiveSession.ID)
+		return MsgLoyverseEventsLoaded{Events: events, Err: err}
+	}
+}
+
 // Init define los comandos iniciales que se ejecutan al arrancar la app.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.CmdLoadCatalog(),
+		m.CmdLoadGroups(),
 		m.CmdLoadSessions(),
 	)
 }

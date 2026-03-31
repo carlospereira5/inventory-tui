@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"inventory-tui/internal/domain/entity"
 	"inventory-tui/internal/domain/repository"
 	"inventory-tui/internal/infrastructure/storage"
@@ -10,11 +11,12 @@ import (
 
 // InventoryService coordina los procesos de negocio relacionados con el inventario.
 type InventoryService struct {
-	db          *sql.DB
-	products    repository.ProductRepository
-	sessions    repository.SessionRepository
-	inventory   repository.InventoryRepository
-	csvStorage  *storage.CSVStorage
+	db         *sql.DB
+	products   repository.ProductRepository
+	sessions   repository.SessionRepository
+	inventory  repository.InventoryRepository
+	groups     repository.CustomGroupRepository
+	csvStorage *storage.CSVStorage
 }
 
 // NewInventoryService crea una instancia del servicio de inventario.
@@ -23,9 +25,10 @@ func NewInventoryService(
 	p repository.ProductRepository,
 	s repository.SessionRepository,
 	i repository.InventoryRepository,
+	g repository.CustomGroupRepository,
 	csv *storage.CSVStorage,
 ) *InventoryService {
-	return &InventoryService{db: db, products: p, sessions: s, inventory: i, csvStorage: csv}
+	return &InventoryService{db: db, products: p, sessions: s, inventory: i, groups: g, csvStorage: csv}
 }
 
 // LoadCatalog busca e importa el archivo CSV en la base de datos de productos.
@@ -35,6 +38,16 @@ func (s *InventoryService) LoadCatalog(ctx context.Context) (int, string, error)
 		return 0, "", err
 	}
 	count, err := s.csvStorage.ImportProducts(ctx, s.db, file)
+	return count, file, err
+}
+
+// LoadGroups busca e importa el archivo CSV de grupos personalizados.
+func (s *InventoryService) LoadGroups(ctx context.Context) (int, string, error) {
+	file, err := s.csvStorage.FindGroupsCSV()
+	if err != nil {
+		return 0, "", err
+	}
+	count, err := s.csvStorage.ImportGroups(ctx, file)
 	return count, file, err
 }
 
@@ -84,7 +97,7 @@ func (s *InventoryService) DeleteSession(ctx context.Context, id int) error {
 
 // ScanLoyverseSale descuenta del stock de la sesión cuando Loyverse reporta una venta.
 // name debe coincidir exactamente con el nombre del producto en el catálogo CSV.
-// Solo actúa si el producto ya fue escaneado manualmente en la sesión (rec != nil).
+// Solo actúa si el producto pertenece a un grupo personalizado o si fue escaneado manualmente.
 func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, name string, delta int) error {
 	// Bug 3 fix: el webhook expone item_name, no barcode. Resolvemos el producto por nombre.
 	p, err := s.products.FindByName(ctx, name)
@@ -93,6 +106,17 @@ func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, 
 	}
 	if p == nil {
 		return nil // producto no encontrado en catálogo — mismatch de nombres, ignorar silenciosamente
+	}
+
+	// Verificar si el producto pertenece a algún grupo personalizado
+	groups, err := s.groups.GetGroupsForProduct(ctx, p.ID)
+	if err != nil {
+		return fmt.Errorf("error al verificar grupos del producto: %w", err)
+	}
+
+	// Si el producto no pertenece a ningún grupo, no aplicar descuento
+	if len(groups) == 0 {
+		return nil
 	}
 
 	source := "LOYVERSE_SALE"
@@ -105,4 +129,14 @@ func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, 
 // DeleteScan elimina un evento de escaneo individual por su ID.
 func (s *InventoryService) DeleteScan(ctx context.Context, id int) error {
 	return s.inventory.DeleteScan(ctx, id)
+}
+
+// GetSessionTotals devuelve el total acumulado por producto en una sesión.
+func (s *InventoryService) GetSessionTotals(ctx context.Context, sessionID int) ([]entity.SessionTotals, error) {
+	return s.inventory.GetSessionTotals(ctx, sessionID)
+}
+
+// GetLoyverseEvents devuelve solo los eventos de Loyverse (ventas y refunds) de una sesión.
+func (s *InventoryService) GetLoyverseEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error) {
+	return s.inventory.GetLoyverseEvents(ctx, sessionID)
 }

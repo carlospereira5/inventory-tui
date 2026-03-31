@@ -17,11 +17,12 @@ import (
 // CSVStorage gestiona la persistencia y lectura de archivos CSV.
 type CSVStorage struct {
 	productRepo repository.ProductRepository
+	groupRepo   repository.CustomGroupRepository
 }
 
 // NewCSVStorage crea una nueva instancia de almacenamiento CSV.
-func NewCSVStorage(repo repository.ProductRepository) *CSVStorage {
-	return &CSVStorage{productRepo: repo}
+func NewCSVStorage(productRepo repository.ProductRepository, groupRepo repository.CustomGroupRepository) *CSVStorage {
+	return &CSVStorage{productRepo: productRepo, groupRepo: groupRepo}
 }
 
 // FindCSVInRoot busca el único archivo .csv presente en la raíz del proyecto.
@@ -46,6 +47,22 @@ func (s *CSVStorage) FindCSVInRoot() (string, error) {
 	}
 
 	return csvFiles[0], nil
+}
+
+// FindGroupsCSV busca el archivo de grupos personalizados (grupos.csv) en la raíz.
+func (s *CSVStorage) FindGroupsCSV() (string, error) {
+	files, err := os.ReadDir(".")
+	if err != nil {
+		return "", err
+	}
+
+	for _, f := range files {
+		if !f.IsDir() && strings.ToLower(f.Name()) == "grupos.csv" {
+			return f.Name(), nil
+		}
+	}
+
+	return "", fmt.Errorf("no se encontró grupos.csv en la raíz")
 }
 
 // ImportProducts lee un CSV e inserta los productos en la base de datos usando concurrencia.
@@ -135,4 +152,69 @@ func (s *CSVStorage) ExportSession(sessionName string, records []entity.Record) 
 		_ = writer.Write([]string{r.Barcode, r.Name, fmt.Sprintf("%d", r.Quantity)})
 	}
 	return fileName, nil
+}
+
+// ImportGroups lee un CSV de grupos e inserta los grupos en la base de datos.
+// Formato esperado: group_name,barcode (una fila por producto-grupo)
+func (s *CSVStorage) ImportGroups(ctx context.Context, filePath string) (int, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	reader := csv.NewReader(f)
+	header, err := reader.Read()
+	if err != nil {
+		return 0, err
+	}
+
+	// Validar header
+	if len(header) < 2 || header[0] != "group_name" || header[1] != "barcode" {
+		return 0, fmt.Errorf("formato de CSV inválido: se espera 'group_name,barcode'")
+	}
+
+	// Agrupar barcodes por nombre de grupo
+	groupMap := make(map[string][]string)
+	for {
+		line, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+		if len(line) >= 2 {
+			groupName := strings.TrimSpace(line[0])
+			barcode := strings.TrimSpace(line[1])
+			if groupName != "" && barcode != "" {
+				groupMap[groupName] = append(groupMap[groupName], barcode)
+			}
+		}
+	}
+
+	// Insertar cada grupo
+	groupCount := 0
+	for groupName, barcodes := range groupMap {
+		// Obtener IDs de productos por barcode
+		var productIDs []int
+		for _, barcode := range barcodes {
+			p, err := s.productRepo.FindByBarcode(ctx, barcode)
+			if err != nil {
+				return 0, fmt.Errorf("error al buscar producto %s: %w", barcode, err)
+			}
+			if p != nil {
+				productIDs = append(productIDs, p.ID)
+			}
+		}
+
+		if len(productIDs) > 0 {
+			if err := s.groupRepo.CreateGroup(ctx, groupName, productIDs); err != nil {
+				return 0, fmt.Errorf("error al crear grupo %s: %w", groupName, err)
+			}
+			groupCount++
+		}
+	}
+
+	return groupCount, nil
 }

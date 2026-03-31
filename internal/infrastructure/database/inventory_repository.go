@@ -42,7 +42,6 @@ func (r *SQLiteInventoryRepository) GetRecord(ctx context.Context, sessionID int
 	return &rec, err
 }
 
-
 // GetSessionHistory recupera el historial de TODOS los escaneos individuales en la sesión.
 func (r *SQLiteInventoryRepository) GetSessionHistory(ctx context.Context, sessionID int) ([]entity.Record, error) {
 	query := `
@@ -74,4 +73,57 @@ func (r *SQLiteInventoryRepository) DeleteScan(ctx context.Context, scanID int) 
 	query := "DELETE FROM inventory_scans WHERE id = ?"
 	_, err := r.db.ExecContext(ctx, query, scanID)
 	return err
+}
+
+// GetSessionTotals devuelve el total acumulado por producto en una sesión.
+func (r *SQLiteInventoryRepository) GetSessionTotals(ctx context.Context, sessionID int) ([]entity.SessionTotals, error) {
+	query := `
+		SELECT s.barcode, p.name, SUM(s.quantity_delta) as total
+		FROM inventory_scans s
+		JOIN products p ON s.barcode = p.barcode
+		WHERE s.session_id = ?
+		GROUP BY s.barcode
+		ORDER BY p.name`
+
+	rows, err := r.db.QueryContext(ctx, query, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var totals []entity.SessionTotals
+	for rows.Next() {
+		var t entity.SessionTotals
+		if err := rows.Scan(&t.Barcode, &t.Name, &t.Quantity); err != nil {
+			return nil, err
+		}
+		totals = append(totals, t)
+	}
+	return totals, nil
+}
+
+// GetLoyverseEvents devuelve solo los eventos de Loyverse (ventas y refunds) de una sesión.
+func (r *SQLiteInventoryRepository) GetLoyverseEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error) {
+	query := `
+		SELECT s.id, s.session_id, p.name, s.quantity_delta, s.source, s.created_at
+		FROM inventory_scans s
+		JOIN products p ON s.barcode = p.barcode
+		WHERE s.session_id = ? AND s.source IN ('LOYVERSE_SALE', 'LOYVERSE_REFUND')
+		ORDER BY s.created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []entity.LoyverseEvent
+	for rows.Next() {
+		var e entity.LoyverseEvent
+		if err := rows.Scan(&e.ID, &e.SessionID, &e.Name, &e.Quantity, &e.Source, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+	return events, nil
 }
