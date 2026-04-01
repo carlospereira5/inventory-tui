@@ -16,6 +16,7 @@ const (
 	StateScanning                   // Pantalla de escaneo de productos.
 	StateHistory                    // Historial de escaneos en la sesión actual.
 	StateLoyverse                   // Pantalla de totales y eventos de Loyverse.
+	StateSyncLoyverse               // Pantalla de sincronización con Loyverse.
 )
 
 // Model representa el estado global de la interfaz de usuario.
@@ -42,6 +43,7 @@ type Model struct {
 	Height               int
 	TextInput            textinput.Model
 	SessionInput         textinput.Model
+	SyncModel            SyncModel
 }
 
 // NewModel inicializa el modelo con sus valores por defecto y sub-componentes.
@@ -62,5 +64,6 @@ func NewModel(svc *service.InventoryService) Model {
 		SessionInput:  si,
 		CatalogStatus: "Cargando catálogo...",
 		GroupsStatus:  "Cargando grupos...",
+		SyncModel:     NewSyncModel(svc),
 	}
 }

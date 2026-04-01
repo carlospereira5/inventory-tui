@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -24,10 +25,12 @@ func (h *LoyverseWebhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.log("payload recibido (%d bytes): %s", len(body), string(body))
+	slog.Info("webhook: payload recibido", "bytes", len(body))
 
 	if h.secret != "" {
 		signature := r.Header.Get("X-Loyverse-Signature")
 		if !h.verifySignature(body, signature) {
+			slog.Warn("webhook: firma inválida, petición rechazada")
 			h.logger.log("firma inválida — petición rechazada")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -36,11 +39,14 @@ func (h *LoyverseWebhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var payload WebhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
+		slog.Error("webhook: error parseando JSON", "err", err)
 		h.logger.log("error parseando JSON: %v", err)
 		// 200 para evitar que Loyverse reintente indefinidamente por errores de formato.
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+
+	slog.Info("webhook: payload parseado", "receipt_count", len(payload.Receipts))
 
 	h.processPayload(payload)
 	w.WriteHeader(http.StatusOK)

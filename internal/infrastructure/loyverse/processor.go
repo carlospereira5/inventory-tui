@@ -2,6 +2,7 @@ package loyverse
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,6 +10,8 @@ import (
 
 // processPayload handles the business logic of processing a Loyverse webhook payload.
 func (h *LoyverseWebhook) processPayload(payload WebhookPayload) {
+	slog.Info("webhook: procesando payload", "receipt_count", len(payload.Receipts))
+
 	prog := h.program.Load()
 
 	// Determinar sesión destino: TUI tiene prioridad sobre Web UI.
@@ -19,9 +22,11 @@ func (h *LoyverseWebhook) processPayload(payload WebhookPayload) {
 		targetSession = webSession
 	}
 	if targetSession == 0 {
+		slog.Warn("webhook: descartando payload, no hay sesión activa")
 		h.logger.log("descartando payload — no hay sesión activa (ni TUI ni web)")
 		return
 	}
+	slog.Info("webhook: sesión destino", "target", targetSession, "tui_session", tuiSession, "web_session", webSession)
 	h.logger.log("sesión destino: %d (tui=%d, web=%d)", targetSession, tuiSession, webSession)
 
 	// Cargar callbacks una vez fuera del loop.
@@ -40,6 +45,7 @@ func (h *LoyverseWebhook) processPayload(payload WebhookPayload) {
 	if startedAtNano != 0 {
 		t := time.Unix(0, startedAtNano)
 		sessionStart = &t
+		slog.Info("webhook: filtro temporal activo", "since", t.UTC().Format(time.RFC3339))
 		h.logger.log("filtro temporal activo desde %s", t.UTC().Format(time.RFC3339))
 	}
 
@@ -55,10 +61,12 @@ func (h *LoyverseWebhook) processPayload(payload WebhookPayload) {
 // isValidReceipt verifica si un receipt debe procesarse según estado, tipo y fecha.
 func (h *LoyverseWebhook) isValidReceipt(receipt Receipt, sessionStart *time.Time) bool {
 	if receipt.CancelledAt != "" {
+		slog.Info("webhook: receipt cancelado, ignorando", "cancelled_at", receipt.CancelledAt)
 		h.logger.log("ignorando receipt cancelado (cancelled_at=%s)", receipt.CancelledAt)
 		return false
 	}
 	if receipt.ReceiptType != "SALE" && receipt.ReceiptType != "REFUND" {
+		slog.Info("webhook: receipt tipo no soportado, ignorando", "receipt_type", receipt.ReceiptType)
 		h.logger.log("ignorando tipo de receipt: %q", receipt.ReceiptType)
 		return false
 	}
@@ -66,10 +74,14 @@ func (h *LoyverseWebhook) isValidReceipt(receipt Receipt, sessionStart *time.Tim
 	if sessionStart != nil {
 		receiptTime, err := parseReceiptDate(receipt.ReceiptDate)
 		if err != nil {
+			slog.Warn("webhook: no se pudo parsear receipt_date, descartando", "receipt_date", receipt.ReceiptDate, "err", err)
 			h.logger.log("no se pudo parsear receipt_date=%q — descartando: %v", receipt.ReceiptDate, err)
 			return false
 		}
 		if receiptTime.Before(*sessionStart) {
+			slog.Info("webhook: receipt anterior a la sesión, ignorando",
+				"receipt_date", receipt.ReceiptDate,
+				"session_start", sessionStart.UTC().Format(time.RFC3339))
 			h.logger.log("ignorando receipt anterior a la sesión: receipt_date=%s, inicio=%s",
 				receipt.ReceiptDate, sessionStart.UTC().Format(time.RFC3339))
 			return false
@@ -86,28 +98,39 @@ func (h *LoyverseWebhook) processReceipt(receipt Receipt, targetSession int, sca
 		deltaMultiplier = 1
 	}
 
+	slog.Info("webhook: procesando receipt", "type", receipt.ReceiptType, "items", len(receipt.LineItems), "session", targetSession)
+
 	for _, item := range receipt.LineItems {
 		if item.ItemName == "" {
+			slog.Debug("webhook: line item sin nombre, saltando")
 			continue
 		}
 		delta := int(item.Quantity) * deltaMultiplier
+		slog.Info("webhook: escribiendo venta", "item", item.ItemName, "delta", delta, "session", targetSession)
 		h.logger.log("escribiendo venta: item=%q, delta=%d, session=%d", item.ItemName, delta, targetSession)
 
 		// Escritura directa a DB.
 		if scanFn != nil {
 			if err := scanFn(context.Background(), targetSession, item.ItemName, delta); err != nil {
+				slog.Error("webhook: error escribiendo venta", "err", err, "item", item.ItemName)
 				h.logger.log("error escribiendo venta: %v", err)
 			}
+		} else {
+			slog.Warn("webhook: scanFn no configurado, venta no persistida", "item", item.ItemName)
 		}
 
 		// Notificar a la TUI para refrescar pantalla.
 		if prog != nil {
 			prog.Send(MsgLoyverseSale{Name: item.ItemName, Delta: delta})
+		} else {
+			slog.Debug("webhook: prog nil, no se envió msg a TUI", "item", item.ItemName)
 		}
 
 		// Notificar a la Web UI vía SSE.
 		if onSale != nil {
 			onSale()
+		} else {
+			slog.Debug("webhook: onSale nil, no se notificó Web UI", "item", item.ItemName)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -13,9 +14,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case MsgCatalogLoaded: // Informa si el catálogo CSV se cargó correctamente.
 		if msg.Err != nil {
+			slog.Error("TUI: catálogo fallido", "err", msg.Err)
 			m.CatalogStatus = fmt.Sprintf("Catálogo fallido: %v", msg.Err)
 			m.CatalogIsError = true
 		} else {
+			slog.Info("TUI: catálogo cargado", "file", msg.File, "count", msg.Count)
 			m.CatalogStatus = fmt.Sprintf("Catálogo: %s (%d p)", msg.File, msg.Count)
 			m.CatalogIsError = false
 		}
@@ -23,9 +26,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case MsgGroupsLoaded: // Informa si el CSV de grupos se cargó correctamente.
 		if msg.Err != nil {
+			slog.Error("TUI: grupos fallido", "err", msg.Err)
 			m.GroupsStatus = fmt.Sprintf("Grupos fallido: %v", msg.Err)
 			m.GroupsIsError = true
 		} else {
+			slog.Info("TUI: grupos cargados", "file", msg.File, "count", msg.Count)
 			m.GroupsStatus = fmt.Sprintf("Grupos: %s (%d g)", msg.File, msg.Count)
 			m.GroupsIsError = false
 		}
@@ -34,18 +39,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MsgSessionsLoaded: // Carga las sesiones en el menú principal.
 		if msg.Err == nil {
 			m.Sessions = msg.Sessions
+			slog.Debug("TUI: sesiones cargadas", "count", len(msg.Sessions))
 		}
 		return m, nil
 
 	case MsgTotalsLoaded: // Carga los totales de la sesión activa.
 		if msg.Err == nil {
 			m.Totals = msg.Totals
+			slog.Debug("TUI: totales cargados", "count", len(msg.Totals))
 		}
 		return m, nil
 
 	case MsgLoyverseEventsLoaded: // Carga los eventos de Loyverse de la sesión activa.
 		if msg.Err == nil {
 			m.LoyverseEvents = msg.Events
+			slog.Debug("TUI: eventos Loyverse cargados", "count", len(msg.Events))
 		}
 		return m, nil
 
@@ -55,6 +63,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg: // Atajos de teclado globales (ej. Ctrl+C o Esc).
 		return m.handleKeyPress(msg)
+
+	case SyncCompletedMsg, SyncErrorMsg:
+		var cmd tea.Cmd
+		m.SyncModel, cmd = m.SyncModel.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -77,6 +90,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleHistoryKeys(msg)
 	case StateLoyverse:
 		return m.handleLoyverseKeys(msg)
+	case StateSyncLoyverse:
+		return m.handleSyncKeys(msg)
 	}
 
 	return m, nil

@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"inventory-tui/internal/domain/entity"
 )
 
@@ -109,4 +110,31 @@ func (r *SQLiteInventoryRepository) GetSessionTotals(ctx context.Context, sessio
 		totals = append(totals, t)
 	}
 	return totals, nil
+}
+
+// GetStockSummary retorna el stock calculado por producto desde el historial de escaneos.
+// Retorna un mapa: barcode → cantidad total escaneada.
+func (r *SQLiteInventoryRepository) GetStockSummary(ctx context.Context) (map[string]float64, error) {
+	query := `
+		SELECT s.barcode, SUM(s.quantity_delta) as total
+		FROM inventory_scans s
+		GROUP BY s.barcode
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("querying stock summary: %w", err)
+	}
+	defer rows.Close()
+
+	summary := make(map[string]float64)
+	for rows.Next() {
+		var barcode string
+		var total float64
+		if err := rows.Scan(&barcode, &total); err != nil {
+			return nil, fmt.Errorf("scanning row: %w", err)
+		}
+		summary[barcode] = total
+	}
+
+	return summary, nil
 }

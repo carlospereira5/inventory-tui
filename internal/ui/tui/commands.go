@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"inventory-tui/internal/domain/entity"
+	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -43,7 +44,13 @@ type MsgSessionsLoaded struct {
 // CmdLoadCatalog inicia la búsqueda e importación del catálogo CSV.
 func (m Model) CmdLoadCatalog() tea.Cmd {
 	return func() tea.Msg {
+		slog.Debug("comando: CmdLoadCatalog ejecutándose")
 		count, file, err := m.Service.LoadCatalog(context.Background())
+		if err != nil {
+			slog.Warn("comando: CmdLoadCatalog fallido", "err", err)
+		} else {
+			slog.Debug("comando: CmdLoadCatalog completado", "count", count, "file", file)
+		}
 		return MsgCatalogLoaded{Count: count, File: file, Err: err}
 	}
 }
@@ -51,7 +58,13 @@ func (m Model) CmdLoadCatalog() tea.Cmd {
 // CmdLoadSessions recupera la lista actualizada de sesiones desde el servicio.
 func (m Model) CmdLoadSessions() tea.Cmd {
 	return func() tea.Msg {
+		slog.Debug("comando: CmdLoadSessions ejecutándose")
 		sessions, err := m.Service.GetSessions(context.Background())
+		if err != nil {
+			slog.Warn("comando: CmdLoadSessions fallido", "err", err)
+		} else {
+			slog.Debug("comando: CmdLoadSessions completado", "count", len(sessions))
+		}
 		return MsgSessionsLoaded{Sessions: sessions, Err: err}
 	}
 }
@@ -59,7 +72,13 @@ func (m Model) CmdLoadSessions() tea.Cmd {
 // CmdLoadGroups inicia la búsqueda e importación del CSV de grupos personalizados.
 func (m Model) CmdLoadGroups() tea.Cmd {
 	return func() tea.Msg {
+		slog.Debug("comando: CmdLoadGroups ejecutándose")
 		count, file, err := m.Service.LoadGroups(context.Background())
+		if err != nil {
+			slog.Warn("comando: CmdLoadGroups fallido", "err", err)
+		} else {
+			slog.Debug("comando: CmdLoadGroups completado", "count", count, "file", file)
+		}
 		return MsgGroupsLoaded{Count: count, File: file, Err: err}
 	}
 }
@@ -70,7 +89,11 @@ func (m Model) CmdLoadTotals() tea.Cmd {
 		if m.ActiveSession == nil {
 			return MsgTotalsLoaded{Totals: nil, Err: nil}
 		}
+		slog.Debug("comando: CmdLoadTotals ejecutándose", "session_id", m.ActiveSession.ID)
 		totals, err := m.Service.GetSessionTotals(context.Background(), m.ActiveSession.ID)
+		if err != nil {
+			slog.Warn("comando: CmdLoadTotals fallido", "session_id", m.ActiveSession.ID, "err", err)
+		}
 		return MsgTotalsLoaded{Totals: totals, Err: err}
 	}
 }
@@ -81,7 +104,11 @@ func (m Model) CmdLoadLoyverseEvents() tea.Cmd {
 		if m.ActiveSession == nil {
 			return MsgLoyverseEventsLoaded{Events: nil, Err: nil}
 		}
+		slog.Debug("comando: CmdLoadLoyverseEvents ejecutándose", "session_id", m.ActiveSession.ID)
 		events, err := m.Service.GetLoyverseEvents(context.Background(), m.ActiveSession.ID)
+		if err != nil {
+			slog.Warn("comando: CmdLoadLoyverseEvents fallido", "session_id", m.ActiveSession.ID, "err", err)
+		}
 		return MsgLoyverseEventsLoaded{Events: events, Err: err}
 	}
 }

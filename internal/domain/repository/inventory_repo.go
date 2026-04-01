@@ -46,6 +46,10 @@ type InventoryRepository interface {
 
 	// GetSessionTotals devuelve el total acumulado por producto en una sesión.
 	GetSessionTotals(ctx context.Context, sessionID int) ([]entity.SessionTotals, error)
+
+	// GetStockSummary retorna el stock calculado por producto desde el historial de escaneos.
+	// Retorna un mapa: barcode → cantidad total escaneada.
+	GetStockSummary(ctx context.Context) (map[string]float64, error)
 }
 
 // LoyverseEventRepository gestiona los eventos de Loyverse (ventas y refunds) en una tabla separada.

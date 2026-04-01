@@ -46,10 +46,12 @@ func (h *LoyverseWebhook) SetProgram(p *tea.Program) {
 	h.program.Store(p)
 }
 
-// SetTUIActiveSession registra la sesión activa en la TUI.
+// SetTUIActiveSession registra la sesión activa en la TUI y marca el inicio
+// de la sesión para el filtro temporal (descarta receipts anteriores a este momento).
 // Llamar al activar una sesión. La TUI tiene prioridad sobre la web UI.
 func (h *LoyverseWebhook) SetTUIActiveSession(id int) {
 	h.tuiSessionID.Store(int64(id))
+	h.SetSessionStartedAt(time.Now())
 }
 
 // SetActiveWebSession registra la sesión activa en la web UI.

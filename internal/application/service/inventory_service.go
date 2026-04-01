@@ -4,8 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
+	"os"
+
 	"inventory-tui/internal/domain/entity"
 	"inventory-tui/internal/domain/repository"
+	"inventory-tui/internal/infrastructure/loyverse"
 	"inventory-tui/internal/infrastructure/storage"
 )
 
@@ -159,4 +163,141 @@ func (s *InventoryService) ActivateSession(sessionID int) {
 	if s.onSessionActivate != nil {
 		s.onSessionActivate(sessionID)
 	}
+}
+
+// SyncWithLoyverse sincroniza el inventario local con la API de Loyverse.
+// Obtiene el catálogo, mapea productos locales y envía el stock calculado.
+// El StoreID se obtiene desde GET /inventory; para variants sin stock previo,
+// se usa la primera tienda de GET /stores como fallback.
+func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.SyncResult, error) {
+	token := os.Getenv("LOYVERSE_TOKEN")
+	if token == "" {
+		return nil, fmt.Errorf("LOYVERSE_TOKEN env var not set")
+	}
+
+	client, err := loyverse.NewClient(token)
+	if err != nil {
+		return nil, fmt.Errorf("creating Loyverse client: %w", err)
+	}
+
+	// 1. Fetch catálogo
+	slog.Info("sync: fetching catalog")
+	items, err := client.GetAllItems()
+	if err != nil {
+		return nil, fmt.Errorf("fetching catalog: %w", err)
+	}
+	slog.Info("sync: catalog fetched", "items", len(items))
+
+	// Debug: log detallado del mapeo de variantes
+	variantMap := loyverse.BuildVariantMap(items)
+	slog.Info("sync: variant map built",
+		"by_barcode_count", len(variantMap.ByBarcode),
+		"by_name_count", len(variantMap.ByName),
+	)
+
+	// 2. Fetch inventario actual para obtener variant_id → store_id
+	slog.Info("sync: fetching inventory levels")
+	inventoryRecords, err := client.GetInventory()
+	if err != nil {
+		return nil, fmt.Errorf("fetching inventory: %w", err)
+	}
+	storeMap := loyverse.BuildStoreMap(inventoryRecords)
+	slog.Info("sync: inventory records fetched", "count", len(inventoryRecords), "store_map_entries", len(storeMap))
+
+	// 3. Fetch stores para fallback (variants sin stock previo no aparecen en GET /inventory)
+	slog.Info("sync: fetching stores")
+	stores, err := client.GetStores()
+	if err != nil {
+		return nil, fmt.Errorf("fetching stores: %w", err)
+	}
+	var defaultStoreID string
+	if len(stores) > 0 {
+		defaultStoreID = stores[0].ID
+		slog.Info("sync: default store", "id", defaultStoreID, "name", stores[0].Name)
+	}
+
+	// 4. Calcular stock local
+	stockSummary, err := s.inventory.GetStockSummary(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("calculating local stock: %w", err)
+	}
+	slog.Info("sync: local stock calculated", "products", len(stockSummary))
+
+	// 5. Mapear productos locales → InventoryLevels
+	var levels []loyverse.InventoryLevel
+	var unmapped []string
+	var syncErrors []loyverse.SyncError
+
+	for barcode, quantity := range stockSummary {
+		info, found := variantMap.ByBarcode[barcode]
+		if !found {
+			slog.Warn("sync: barcode no mapeado", "barcode", barcode)
+			unmapped = append(unmapped, barcode)
+			continue
+		}
+
+		slog.Debug("sync: barcode mapeado",
+			"barcode", barcode,
+			"variant_id", info.VariantID,
+			"quantity", quantity,
+		)
+
+		// Intentar obtener store_id desde inventario
+		storeID, ok := storeMap[info.VariantID]
+		if !ok {
+			// Fallback: usar primera tienda disponible
+			if defaultStoreID == "" {
+				syncErrors = append(syncErrors, loyverse.SyncError{
+					ProductName: barcode,
+					Barcode:     barcode,
+					Error:       fmt.Sprintf("no store_id for variant %s (not in inventory, no stores available)", info.VariantID),
+				})
+				continue
+			}
+			slog.Warn("sync: variant not in inventory, using default store",
+				"barcode", barcode,
+				"variant_id", info.VariantID,
+				"default_store_id", defaultStoreID,
+			)
+			storeID = defaultStoreID
+		}
+
+		slog.Debug("sync: level preparado",
+			"barcode", barcode,
+			"variant_id", info.VariantID,
+			"store_id", storeID,
+			"stock_after", quantity,
+		)
+
+		levels = append(levels, loyverse.InventoryLevel{
+			VariantID:  info.VariantID,
+			StoreID:    storeID,
+			StockAfter: quantity,
+		})
+	}
+
+	slog.Info("sync: levels prepared", "total", len(levels), "unmapped", len(unmapped), "errors", len(syncErrors))
+
+	// 6. Ejecutar batch update
+	slog.Info("sync: executing batch update", "levels_count", len(levels))
+	success, failed, batchErrors := client.UpdateStockBatch(levels)
+
+	result := &loyverse.SyncResult{
+		Total:   len(stockSummary),
+		Success: success,
+		Failed:  failed + len(syncErrors),
+		Errors:  append(syncErrors, batchErrors...),
+	}
+
+	if len(unmapped) > 0 {
+		slog.Warn("sync: unmapped products", "count", len(unmapped), "barcodes", unmapped)
+	}
+
+	slog.Info("sync: completed",
+		"total", result.Total,
+		"success", result.Success,
+		"failed", result.Failed,
+		"batch_errors", len(batchErrors),
+	)
+	return result, nil
 }

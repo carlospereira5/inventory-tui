@@ -121,9 +121,10 @@ func (m Model) viewHistory() (string, string) {
 		contentWidth = 30
 	}
 
-	maxHeight := m.Height - 8
-	if maxHeight < 5 {
-		maxHeight = 5
+	// Altura fija para el cuadro de contenido (header + footer + márgenes)
+	contentHeight := m.Height - 12
+	if contentHeight < 5 {
+		contentHeight = 5
 	}
 
 	var rows []string
@@ -151,13 +152,19 @@ func (m Model) viewHistory() (string, string) {
 		}
 	}
 
-	// Aplicar scroll
-	visibleRows := m.getVisibleRows(rows, m.Cursor, &m.HistoryScrollOffset, maxHeight)
+	// Aplicar scroll y recortar al tamaño disponible
+	visibleRows := m.getVisibleRows(rows, m.Cursor, &m.HistoryScrollOffset, contentHeight)
+
+	// Cuadro con altura fija para evitar crecimiento infinito
+	historyBox := lipgloss.NewStyle().
+		Width(contentWidth).
+		Height(contentHeight).
+		Render(strings.Join(visibleRows, "\n"))
 
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		title,
 		"",
-		strings.Join(visibleRows, "\n"),
+		historyBox,
 	)
 
 	help := styles.HelpStyle.Render("tab: volver a escaneo • d: borrar • ↑↓ navegar • esc: menú")
@@ -172,9 +179,10 @@ func (m Model) viewLoyverse() (string, string) {
 		panelWidth = 20
 	}
 
-	maxHeight := m.Height - 8
-	if maxHeight < 5 {
-		maxHeight = 5
+	// Altura fija para los paneles (header + footer + márgenes)
+	panelHeight := m.Height - 12
+	if panelHeight < 5 {
+		panelHeight = 5
 	}
 
 	// Panel izquierdo: Tabla de totales por producto
@@ -192,15 +200,16 @@ func (m Model) viewLoyverse() (string, string) {
 			totalsRows = append(totalsRows, row)
 		}
 	}
-	// Limitar altura del panel de totales
-	if len(totalsRows) > maxHeight {
-		totalsRows = totalsRows[:maxHeight]
+	// Recortar al tamaño disponible
+	if len(totalsRows) > panelHeight {
+		totalsRows = totalsRows[:panelHeight]
 	}
 	totalsBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("63")).
 		Padding(1).
 		Width(panelWidth).
+		Height(panelHeight).
 		Render(strings.Join(totalsRows, "\n"))
 
 	// Panel derecho: Eventos de Loyverse con scroll
@@ -230,12 +239,13 @@ func (m Model) viewLoyverse() (string, string) {
 			eventsRows = append(eventsRows, row)
 		}
 	}
-	visibleEvents := m.getVisibleRows(eventsRows, m.Cursor, &m.LoyverseScrollOffset, maxHeight)
+	visibleEvents := m.getVisibleRows(eventsRows, m.Cursor, &m.LoyverseScrollOffset, panelHeight-2)
 	eventsBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1).
 		Width(panelWidth).
+		Height(panelHeight).
 		Render(strings.Join(visibleEvents, "\n"))
 
 	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, totalsBox, "  ", eventsBox)
@@ -246,6 +256,12 @@ func (m Model) viewLoyverse() (string, string) {
 		mainContent,
 	)
 
-	help := styles.HelpStyle.Render("tab: ver historial • d: borrar • ↑↓ navegar • esc: menú")
+	help := styles.HelpStyle.Render("tab: ver historial • d: borrar • ↑↓ navegar • s: sync • esc: menú")
 	return body, help
+}
+
+func (m Model) viewSyncLoyverse() (string, string) {
+	m.SyncModel.Width = m.Width
+	body := m.SyncModel.View()
+	return body, ""
 }
