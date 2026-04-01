@@ -121,6 +121,11 @@ func (m Model) viewHistory() (string, string) {
 		contentWidth = 30
 	}
 
+	maxHeight := m.Height - 8
+	if maxHeight < 5 {
+		maxHeight = 5
+	}
+
 	var rows []string
 	if len(m.History) == 0 {
 		rows = append(rows, styles.Gray.Render("  (Sin movimientos)"))
@@ -146,13 +151,16 @@ func (m Model) viewHistory() (string, string) {
 		}
 	}
 
+	// Aplicar scroll
+	visibleRows := m.getVisibleRows(rows, m.Cursor, &m.HistoryScrollOffset, maxHeight)
+
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		title,
 		"",
-		strings.Join(rows, "\n"),
+		strings.Join(visibleRows, "\n"),
 	)
 
-	help := styles.HelpStyle.Render("tab: volver a escaneo • d: borrar entrada • esc: menú")
+	help := styles.HelpStyle.Render("tab: volver a escaneo • d: borrar • ↑↓ navegar • esc: menú")
 	return body, help
 }
 
@@ -162,6 +170,11 @@ func (m Model) viewLoyverse() (string, string) {
 	panelWidth := (m.Width - 16) / 2
 	if panelWidth < 20 {
 		panelWidth = 20
+	}
+
+	maxHeight := m.Height - 8
+	if maxHeight < 5 {
+		maxHeight = 5
 	}
 
 	// Panel izquierdo: Tabla de totales por producto
@@ -179,6 +192,10 @@ func (m Model) viewLoyverse() (string, string) {
 			totalsRows = append(totalsRows, row)
 		}
 	}
+	// Limitar altura del panel de totales
+	if len(totalsRows) > maxHeight {
+		totalsRows = totalsRows[:maxHeight]
+	}
 	totalsBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("63")).
@@ -186,7 +203,7 @@ func (m Model) viewLoyverse() (string, string) {
 		Width(panelWidth).
 		Render(strings.Join(totalsRows, "\n"))
 
-	// Panel derecho: Eventos de Loyverse en orden cronológico
+	// Panel derecho: Eventos de Loyverse con scroll
 	var eventsRows []string
 	eventsRows = append(eventsRows, styles.Green.Render("🛒 EVENTOS LOYVERSE"))
 	if len(m.LoyverseEvents) == 0 {
@@ -196,7 +213,7 @@ func (m Model) viewLoyverse() (string, string) {
 		if nameWidth < 8 {
 			nameWidth = 8
 		}
-		for _, e := range m.LoyverseEvents {
+		for i, e := range m.LoyverseEvents {
 			icon := "🔻"
 			if e.Quantity > 0 {
 				icon = "🔺"
@@ -205,16 +222,21 @@ func (m Model) viewLoyverse() (string, string) {
 			if groupLabel == "" {
 				groupLabel = "sin grupo"
 			}
-			row := fmt.Sprintf("%s %-*s | %3d | [%s]", icon, nameWidth, e.Name, e.Quantity, groupLabel)
+			cursor := "  "
+			if m.Cursor == i {
+				cursor = styles.Blue.Render("▸ ")
+			}
+			row := fmt.Sprintf("%s%s %-*s | %3d | [%s]", cursor, icon, nameWidth, e.Name, e.Quantity, groupLabel)
 			eventsRows = append(eventsRows, row)
 		}
 	}
+	visibleEvents := m.getVisibleRows(eventsRows, m.Cursor, &m.LoyverseScrollOffset, maxHeight)
 	eventsBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1).
 		Width(panelWidth).
-		Render(strings.Join(eventsRows, "\n"))
+		Render(strings.Join(visibleEvents, "\n"))
 
 	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, totalsBox, "  ", eventsBox)
 
@@ -224,6 +246,6 @@ func (m Model) viewLoyverse() (string, string) {
 		mainContent,
 	)
 
-	help := styles.HelpStyle.Render("tab: ver historial • esc: menú")
+	help := styles.HelpStyle.Render("tab: ver historial • ↑↓ navegar • esc: menú")
 	return body, help
 }

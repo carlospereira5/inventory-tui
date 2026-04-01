@@ -58,3 +58,33 @@ func (m Model) View() string {
 		Height(m.Height - 3).
 		Render(content)
 }
+
+// getVisibleRows devuelve un subconjunto de filas visibles basado en el scroll offset y altura máxima.
+// cursor es la posición del cursor actual, scrollOffset es un puntero al offset de scroll que se actualiza.
+func (m Model) getVisibleRows(rows []string, cursor int, scrollOffset *int, maxHeight int) []string {
+	if len(rows) == 0 {
+		return rows
+	}
+
+	// Asegurar que el cursor sea visible
+	if cursor < *scrollOffset {
+		*scrollOffset = cursor
+	} else if cursor >= *scrollOffset+maxHeight {
+		*scrollOffset = cursor - maxHeight + 1
+	}
+
+	// Limitar scroll offset
+	if *scrollOffset < 0 {
+		*scrollOffset = 0
+	}
+	if *scrollOffset >= len(rows) {
+		*scrollOffset = len(rows) - 1
+	}
+
+	// Extraer filas visibles
+	end := *scrollOffset + maxHeight
+	if end > len(rows) {
+		end = len(rows)
+	}
+	return rows[*scrollOffset:end]
+}

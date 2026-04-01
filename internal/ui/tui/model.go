@@ -20,26 +20,28 @@ const (
 
 // Model representa el estado global de la interfaz de usuario.
 type Model struct {
-	Service          *service.InventoryService
-	State            State
-	ActiveSession    *entity.Session
-	LastScanned      *entity.Record
-	ConsecutiveCount int
-	StatusMsg        string
-	CatalogStatus    string
-	CatalogIsError   bool
-	GroupsStatus     string
-	GroupsIsError    bool
-	Err              error
-	Sessions         []entity.Session
-	History          []entity.Record
-	Totals           []entity.SessionTotals
-	LoyverseEvents   []entity.LoyverseEvent
-	Cursor           int
-	Width            int
-	Height           int
-	TextInput        textinput.Model
-	SessionInput     textinput.Model
+	Service              *service.InventoryService
+	State                State
+	ActiveSession        *entity.Session
+	LastScanned          *entity.Record
+	ConsecutiveCount     int
+	StatusMsg            string
+	CatalogStatus        string
+	CatalogIsError       bool
+	GroupsStatus         string
+	GroupsIsError        bool
+	Err                  error
+	Sessions             []entity.Session
+	History              []entity.Record
+	Totals               []entity.SessionTotals
+	LoyverseEvents       []entity.LoyverseEvent
+	Cursor               int
+	HistoryScrollOffset  int
+	LoyverseScrollOffset int
+	Width                int
+	Height               int
+	TextInput            textinput.Model
+	SessionInput         textinput.Model
 }
 
 // NewModel inicializa el modelo con sus valores por defecto y sub-componentes.
