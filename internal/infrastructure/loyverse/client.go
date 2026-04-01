@@ -9,6 +9,19 @@ import (
 	"time"
 )
 
+// newHTTPClient crea un http.Client con connection pooling para reutilizar
+// conexiones TCP/TLS entre requests, evitando handshakes repetidos.
+func newHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
+}
+
 const defaultBaseURL = "https://api.loyverse.com/v1.0"
 
 // HTTPClient es la interfaz para el cliente HTTP (permite mocking en tests).
@@ -29,7 +42,7 @@ func NewClient(token string) (*Client, error) {
 		return nil, fmt.Errorf("LOYVERSE_TOKEN env var not set")
 	}
 	return &Client{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: newHTTPClient(),
 		baseURL:    defaultBaseURL,
 		token:      token,
 	}, nil
