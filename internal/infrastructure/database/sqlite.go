@@ -25,6 +25,15 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	_, _ = db.Exec("PRAGMA foreign_keys = ON")
 	_, _ = db.Exec("PRAGMA cache_size = -2000") // 2MB de caché.
 
+	// busy_timeout: esperar hasta 5s antes de devolver SQLITE_BUSY.
+	// Crítico en Android/Termux donde el filesystem tiene locks más agresivos.
+	_, _ = db.Exec("PRAGMA busy_timeout = 5000")
+
+	// SQLite solo soporta un escritor a la vez. Limitar a 1 conexión
+	// evita contención y "database is locked" con múltiples goroutines.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
 	if err := initSchema(db); err != nil {
 		return nil, err
 	}
