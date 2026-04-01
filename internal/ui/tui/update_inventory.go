@@ -108,6 +108,14 @@ func (m Model) handleLoyverseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Cursor < maxCursor {
 			m.Cursor++
 		}
+	case "d", "backspace":
+		if len(m.LoyverseEvents) > 0 && m.Cursor < len(m.LoyverseEvents) {
+			_ = m.Service.DeleteLoyverseEvent(context.Background(), m.LoyverseEvents[m.Cursor].ID)
+			m.LoyverseEvents, _ = m.Service.GetLoyverseEvents(context.Background(), m.ActiveSession.ID)
+			if m.Cursor >= len(m.LoyverseEvents) && m.Cursor > 0 {
+				m.Cursor--
+			}
+		}
 	}
 	return m, nil
 }

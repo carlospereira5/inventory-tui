@@ -15,6 +15,7 @@ type InventoryService struct {
 	products          repository.ProductRepository
 	sessions          repository.SessionRepository
 	inventory         repository.InventoryRepository
+	loyverseEvents    repository.LoyverseEventRepository
 	groups            repository.CustomGroupRepository
 	csvStorage        *storage.CSVStorage
 	onSessionActivate func(sessionID int)
@@ -26,10 +27,11 @@ func NewInventoryService(
 	p repository.ProductRepository,
 	s repository.SessionRepository,
 	i repository.InventoryRepository,
+	l repository.LoyverseEventRepository,
 	g repository.CustomGroupRepository,
 	csv *storage.CSVStorage,
 ) *InventoryService {
-	return &InventoryService{db: db, products: p, sessions: s, inventory: i, groups: g, csvStorage: csv}
+	return &InventoryService{db: db, products: p, sessions: s, inventory: i, loyverseEvents: l, groups: g, csvStorage: csv}
 }
 
 // LoadCatalog busca e importa el archivo CSV en la base de datos de productos.
@@ -124,7 +126,7 @@ func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, 
 	if delta > 0 {
 		source = "LOYVERSE_REFUND"
 	}
-	return s.inventory.AddScan(ctx, sessionID, p.Barcode, delta, source)
+	return s.loyverseEvents.AddEvent(ctx, sessionID, p.Barcode, delta, source)
 }
 
 // DeleteScan elimina un evento de escaneo individual por su ID.
@@ -139,7 +141,12 @@ func (s *InventoryService) GetSessionTotals(ctx context.Context, sessionID int) 
 
 // GetLoyverseEvents devuelve solo los eventos de Loyverse (ventas y refunds) de una sesión.
 func (s *InventoryService) GetLoyverseEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error) {
-	return s.inventory.GetLoyverseEvents(ctx, sessionID)
+	return s.loyverseEvents.GetEvents(ctx, sessionID)
+}
+
+// DeleteLoyverseEvent elimina un evento de Loyverse (venta o refund) por su ID.
+func (s *InventoryService) DeleteLoyverseEvent(ctx context.Context, eventID int) error {
+	return s.loyverseEvents.DeleteEvent(ctx, eventID)
 }
 
 // SetOnSessionActivate registra un callback que se llama cuando se activa una sesión.

@@ -22,10 +22,11 @@ func main() {
 	productRepo := database.NewSQLiteProductRepository(db.Conn)
 	sessionRepo := database.NewSQLiteSessionRepository(db.Conn)
 	invRepo := database.NewSQLiteInventoryRepository(db.Conn)
+	loyverseRepo := database.NewSQLiteLoyverseEventRepository(db.Conn)
 	groupRepo := database.NewSQLiteCustomGroupRepository(db.Conn)
 	csvStore := storage.NewCSVStorage(productRepo, groupRepo)
 
-	svc := service.NewInventoryService(db.Conn, productRepo, sessionRepo, invRepo, groupRepo, csvStore)
+	svc := service.NewInventoryService(db.Conn, productRepo, sessionRepo, invRepo, loyverseRepo, groupRepo, csvStore)
 
 	// Cargar catálogo CSV al iniciar (no hay TUI que lo haga en background).
 	if count, file, err := svc.LoadCatalog(context.Background()); err != nil {

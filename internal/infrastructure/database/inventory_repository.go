@@ -76,16 +76,25 @@ func (r *SQLiteInventoryRepository) DeleteScan(ctx context.Context, scanID int) 
 }
 
 // GetSessionTotals devuelve el total acumulado por producto en una sesión.
+// Incluye tanto escaneos manuales como eventos de Loyverse.
 func (r *SQLiteInventoryRepository) GetSessionTotals(ctx context.Context, sessionID int) ([]entity.SessionTotals, error) {
 	query := `
-		SELECT s.barcode, p.name, SUM(s.quantity_delta) as total
-		FROM inventory_scans s
-		JOIN products p ON s.barcode = p.barcode
-		WHERE s.session_id = ?
-		GROUP BY s.barcode
-		ORDER BY p.name`
+		SELECT barcode, name, SUM(total_delta) as total
+		FROM (
+			SELECT s.barcode, p.name, s.quantity_delta as total_delta
+			FROM inventory_scans s
+			JOIN products p ON s.barcode = p.barcode
+			WHERE s.session_id = ?
+			UNION ALL
+			SELECT le.barcode, p.name, le.quantity_delta as total_delta
+			FROM loyverse_events le
+			JOIN products p ON le.barcode = p.barcode
+			WHERE le.session_id = ?
+		)
+		GROUP BY barcode
+		ORDER BY name`
 
-	rows, err := r.db.QueryContext(ctx, query, sessionID)
+	rows, err := r.db.QueryContext(ctx, query, sessionID, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,32 +109,4 @@ func (r *SQLiteInventoryRepository) GetSessionTotals(ctx context.Context, sessio
 		totals = append(totals, t)
 	}
 	return totals, nil
-}
-
-// GetLoyverseEvents devuelve solo los eventos de Loyverse (ventas y refunds) de una sesión.
-func (r *SQLiteInventoryRepository) GetLoyverseEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error) {
-	query := `
-		SELECT s.id, s.session_id, p.name, COALESCE(cg.group_name, ''), s.quantity_delta, s.source, s.created_at
-		FROM inventory_scans s
-		JOIN products p ON s.barcode = p.barcode
-		LEFT JOIN custom_group_products cgp ON p.id = cgp.product_id
-		LEFT JOIN custom_groups cg ON cgp.group_id = cg.id
-		WHERE s.session_id = ? AND s.source IN ('LOYVERSE_SALE', 'LOYVERSE_REFUND')
-		ORDER BY s.created_at DESC`
-
-	rows, err := r.db.QueryContext(ctx, query, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var events []entity.LoyverseEvent
-	for rows.Next() {
-		var e entity.LoyverseEvent
-		if err := rows.Scan(&e.ID, &e.SessionID, &e.Name, &e.GroupName, &e.Quantity, &e.Source, &e.CreatedAt); err != nil {
-			return nil, err
-		}
-		events = append(events, e)
-	}
-	return events, nil
 }

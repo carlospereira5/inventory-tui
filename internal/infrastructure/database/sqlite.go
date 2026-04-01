@@ -55,6 +55,17 @@ func initSchema(db *sql.DB) error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
 		);`,
+		// Tabla separada para eventos de Loyverse (ventas y refunds).
+		// Separada de inventory_scans para que el borrado en una pantalla no afecte la otra.
+		`CREATE TABLE IF NOT EXISTS loyverse_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_id INTEGER NOT NULL,
+			barcode TEXT NOT NULL,
+			quantity_delta INTEGER NOT NULL,
+			source TEXT NOT NULL DEFAULT 'LOYVERSE_SALE', -- LOYVERSE_SALE, LOYVERSE_REFUND
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
+		);`,
 		// Tabla para grupos personalizados de productos (descuentos Loyverse).
 		`CREATE TABLE IF NOT EXISTS custom_groups (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

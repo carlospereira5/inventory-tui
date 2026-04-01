@@ -46,9 +46,18 @@ type InventoryRepository interface {
 
 	// GetSessionTotals devuelve el total acumulado por producto en una sesión.
 	GetSessionTotals(ctx context.Context, sessionID int) ([]entity.SessionTotals, error)
+}
 
-	// GetLoyverseEvents devuelve solo los eventos de Loyverse (ventas y refunds) de una sesión.
-	GetLoyverseEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error)
+// LoyverseEventRepository gestiona los eventos de Loyverse (ventas y refunds) en una tabla separada.
+type LoyverseEventRepository interface {
+	// AddEvent registra un nuevo evento de Loyverse en la sesión.
+	AddEvent(ctx context.Context, sessionID int, barcode string, delta int, source string) error
+
+	// GetEvents devuelve todos los eventos de Loyverse de una sesión.
+	GetEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error)
+
+	// DeleteEvent elimina un evento de Loyverse por su ID.
+	DeleteEvent(ctx context.Context, eventID int) error
 }
 
 // CustomGroupRepository gestiona los grupos personalizados de productos para descuentos de Loyverse.

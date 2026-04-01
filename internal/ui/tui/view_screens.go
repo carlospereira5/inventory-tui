@@ -246,6 +246,6 @@ func (m Model) viewLoyverse() (string, string) {
 		mainContent,
 	)
 
-	help := styles.HelpStyle.Render("tab: ver historial • ↑↓ navegar • esc: menú")
+	help := styles.HelpStyle.Render("tab: ver historial • d: borrar • ↑↓ navegar • esc: menú")
 	return body, help
 }
