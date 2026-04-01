@@ -192,7 +192,7 @@ func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.Sync
 	var stores []loyverse.Store
 	var stockSummary map[string]float64
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, gCtx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		start := time.Now()
@@ -230,7 +230,7 @@ func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.Sync
 	g.Go(func() error {
 		start := time.Now()
 		var err error
-		stockSummary, err = s.inventory.GetStockSummary(ctx)
+		stockSummary, err = s.inventory.GetStockSummary(gCtx)
 		if err != nil {
 			return fmt.Errorf("calculating local stock: %w", err)
 		}
@@ -243,6 +243,7 @@ func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.Sync
 	}
 
 	// Fase secuencial: mapeo y construcción de niveles
+	// NOTA: usar ctx original (no gCtx), porque errgroup cancela gCtx al completar Wait().
 	start := time.Now()
 	variantMap := loyverse.BuildVariantMap(items)
 	storeMap := loyverse.BuildStoreMap(inventoryRecords)
