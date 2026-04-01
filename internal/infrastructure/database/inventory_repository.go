@@ -105,9 +105,11 @@ func (r *SQLiteInventoryRepository) GetSessionTotals(ctx context.Context, sessio
 // GetLoyverseEvents devuelve solo los eventos de Loyverse (ventas y refunds) de una sesión.
 func (r *SQLiteInventoryRepository) GetLoyverseEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error) {
 	query := `
-		SELECT s.id, s.session_id, p.name, s.quantity_delta, s.source, s.created_at
+		SELECT s.id, s.session_id, p.name, COALESCE(cg.group_name, ''), s.quantity_delta, s.source, s.created_at
 		FROM inventory_scans s
 		JOIN products p ON s.barcode = p.barcode
+		LEFT JOIN custom_group_products cgp ON p.id = cgp.product_id
+		LEFT JOIN custom_groups cg ON cgp.group_id = cg.id
 		WHERE s.session_id = ? AND s.source IN ('LOYVERSE_SALE', 'LOYVERSE_REFUND')
 		ORDER BY s.created_at DESC`
 
@@ -120,7 +122,7 @@ func (r *SQLiteInventoryRepository) GetLoyverseEvents(ctx context.Context, sessi
 	var events []entity.LoyverseEvent
 	for rows.Next() {
 		var e entity.LoyverseEvent
-		if err := rows.Scan(&e.ID, &e.SessionID, &e.Name, &e.Quantity, &e.Source, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.SessionID, &e.Name, &e.GroupName, &e.Quantity, &e.Source, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		events = append(events, e)

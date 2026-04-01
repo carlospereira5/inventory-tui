@@ -11,23 +11,23 @@ import (
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
-	case MsgCatalogLoaded: // Informa si el catálogo o grupos CSV se cargaron correctamente.
-		if msg.IsCatalog {
-			if msg.Err != nil {
-				m.CSVStatus = fmt.Sprintf("Catálogo fallido: %v", msg.Err)
-				m.CSVIsError = true
-			} else {
-				m.CSVStatus = fmt.Sprintf("Catálogo: %s (%d p)", msg.File, msg.Count)
-				m.CSVIsError = false
-			}
+	case MsgCatalogLoaded: // Informa si el catálogo CSV se cargó correctamente.
+		if msg.Err != nil {
+			m.CatalogStatus = fmt.Sprintf("Catálogo fallido: %v", msg.Err)
+			m.CatalogIsError = true
 		} else {
-			if msg.Err != nil {
-				m.CSVStatus = fmt.Sprintf("Grupos fallido: %v", msg.Err)
-				m.CSVIsError = true
-			} else {
-				m.CSVStatus = fmt.Sprintf("Grupos: %s (%d g)", msg.File, msg.Count)
-				m.CSVIsError = false
-			}
+			m.CatalogStatus = fmt.Sprintf("Catálogo: %s (%d p)", msg.File, msg.Count)
+			m.CatalogIsError = false
+		}
+		return m, nil
+
+	case MsgGroupsLoaded: // Informa si el CSV de grupos se cargó correctamente.
+		if msg.Err != nil {
+			m.GroupsStatus = fmt.Sprintf("Grupos fallido: %v", msg.Err)
+			m.GroupsIsError = true
+		} else {
+			m.GroupsStatus = fmt.Sprintf("Grupos: %s (%d g)", msg.File, msg.Count)
+			m.GroupsIsError = false
 		}
 		return m, nil
 

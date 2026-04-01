@@ -34,7 +34,7 @@ func (s *CSVStorage) FindCSVInRoot() (string, error) {
 
 	var csvFiles []string
 	for _, f := range files {
-		if !f.IsDir() && strings.HasSuffix(strings.ToLower(f.Name()), ".csv") {
+		if !f.IsDir() && strings.HasSuffix(strings.ToLower(f.Name()), ".csv") && strings.ToLower(f.Name()) != "grupos.csv" {
 			csvFiles = append(csvFiles, f.Name())
 		}
 	}
@@ -209,6 +209,12 @@ func (s *CSVStorage) ImportGroups(ctx context.Context, filePath string) (int, er
 		}
 
 		if len(productIDs) > 0 {
+			// Verificar si el grupo ya existe para evitar error de UNIQUE constraint
+			existing, _ := s.groupRepo.GetGroupByName(ctx, groupName)
+			if existing != nil {
+				groupCount++
+				continue
+			}
 			if err := s.groupRepo.CreateGroup(ctx, groupName, productIDs); err != nil {
 				return 0, fmt.Errorf("error al crear grupo %s: %w", groupName, err)
 			}

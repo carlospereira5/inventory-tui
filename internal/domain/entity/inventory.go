@@ -30,7 +30,8 @@ type LoyverseEvent struct {
 	ID        int
 	SessionID int
 	Name      string // Nombre del producto (resuelto por el servicio).
-	Quantity  int    // Cantidad vendida (negativo) o devuelta (positivo).
+	GroupName string // Nombre del grupo al que pertenece el producto (si aplica).
+	Quantity  int    // Cantidad vendida (negativo) o devuelta (positiva).
 	Source    string // "LOYVERSE_SALE" o "LOYVERSE_REFUND".
 	CreatedAt string // Fecha del ticket en formato ISO8601.
 }

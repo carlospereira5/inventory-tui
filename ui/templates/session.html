@@ -63,10 +63,12 @@
           hx-target="#scan-result"
           hx-swap="innerHTML"
           hx-indicator="#refresh-indicator"
-          hx-on::after-request="this.reset(); this.querySelector('input').focus()"
+          hx-on:htmx:before-request="this.querySelector('input').value = ''"
+          hx-on:htmx:after-request="this.querySelector('input').focus()"
           class="flex flex-col gap-3">
           <input
             type="text"
+            id="barcode-input"
             name="barcode"
             autofocus
             autocomplete="off"
@@ -78,6 +80,13 @@
           </button>
         </form>
       </div>
+
+      <script>
+        // Asegurar que el input recupere el foco incluso si el usuario hace clic fuera
+        document.addEventListener('click', () => {
+          document.getElementById('barcode-input').focus();
+        });
+      </script>
 
       <div id="scan-result">
         <div class="flex flex-col items-center justify-center py-12 text-gray-300">

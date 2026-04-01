@@ -13,15 +13,23 @@ func (m Model) View() string {
 	var footer string
 
 	// Renderizar Cabecera
-	csvStatus := m.CSVStatus
-	if m.CSVIsError {
-		csvStatus = styles.ErrorStyle.Render(fmt.Sprintf("[%s]", csvStatus))
+	catalogStatus := m.CatalogStatus
+	if m.CatalogIsError {
+		catalogStatus = styles.ErrorStyle.Render(fmt.Sprintf("[%s]", catalogStatus))
 	} else {
-		csvStatus = styles.SuccessStyle.Render(fmt.Sprintf("[%s]", csvStatus))
+		catalogStatus = styles.SuccessStyle.Render(fmt.Sprintf("[%s]", catalogStatus))
 	}
+
+	groupsStatus := m.GroupsStatus
+	if m.GroupsIsError {
+		groupsStatus = styles.ErrorStyle.Render(fmt.Sprintf("[%s]", groupsStatus))
+	} else {
+		groupsStatus = styles.SuccessStyle.Render(fmt.Sprintf("[%s]", groupsStatus))
+	}
+
 	header := styles.HeaderStyle.Render(
 		lipgloss.JoinHorizontal(lipgloss.Top,
-			styles.TitleStyle.Render("Inventario TUI"), " ", csvStatus,
+			styles.TitleStyle.Render("Inventario TUI"), " ", catalogStatus, " ", groupsStatus,
 		),
 	)
 

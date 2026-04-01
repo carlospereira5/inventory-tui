@@ -26,8 +26,10 @@ type Model struct {
 	LastScanned      *entity.Record
 	ConsecutiveCount int
 	StatusMsg        string
-	CSVStatus        string
-	CSVIsError       bool
+	CatalogStatus    string
+	CatalogIsError   bool
+	GroupsStatus     string
+	GroupsIsError    bool
 	Err              error
 	Sessions         []entity.Session
 	History          []entity.Record
@@ -52,10 +54,11 @@ func NewModel(svc *service.InventoryService) Model {
 	si.Width = 40
 
 	return Model{
-		Service:      svc,
-		State:        StateSessionList,
-		TextInput:    ti,
-		SessionInput: si,
-		CSVStatus:    "Cargando catálogo...",
+		Service:       svc,
+		State:         StateSessionList,
+		TextInput:     ti,
+		SessionInput:  si,
+		CatalogStatus: "Cargando catálogo...",
+		GroupsStatus:  "Cargando grupos...",
 	}
 }

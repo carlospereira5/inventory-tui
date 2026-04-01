@@ -116,18 +116,27 @@ func (m Model) viewScanning() (string, string) {
 func (m Model) viewHistory() (string, string) {
 	title := styles.Purple.Render(fmt.Sprintf("📜 HISTORIAL: %s", m.ActiveSession.Name))
 
+	contentWidth := m.Width - 10
+	if contentWidth < 30 {
+		contentWidth = 30
+	}
+
 	var rows []string
 	if len(m.History) == 0 {
-		rows = append(rows, "  (Sin movimientos)")
+		rows = append(rows, styles.Gray.Render("  (Sin movimientos)"))
 	} else {
 		for i, r := range m.History {
 			cursor := "  "
 			icon := "📦"
 			if r.Quantity < 0 {
 				icon = "🛒"
-			} // Representa una venta de Loyverse
+			}
 
-			row := fmt.Sprintf("%s %-20s | %d | %s", icon, r.Name, r.Quantity, r.Barcode)
+			nameWidth := contentWidth / 3
+			if nameWidth < 10 {
+				nameWidth = 10
+			}
+			row := fmt.Sprintf("%s %-*s | %4d | %s", icon, nameWidth, r.Name, r.Quantity, r.Barcode)
 			if m.Cursor == i {
 				cursor = styles.Blue.Render("▸ ")
 				rows = append(rows, cursor+styles.SelectedStyle.Render(row))
@@ -150,14 +159,23 @@ func (m Model) viewHistory() (string, string) {
 func (m Model) viewLoyverse() (string, string) {
 	title := styles.Purple.Render(fmt.Sprintf("📊 TOTALES Y LOYVERSE: %s", m.ActiveSession.Name))
 
+	panelWidth := (m.Width - 16) / 2
+	if panelWidth < 20 {
+		panelWidth = 20
+	}
+
 	// Panel izquierdo: Tabla de totales por producto
 	var totalsRows []string
-	totalsRows = append(totalsRows, styles.Green.Render("📦 PRODUCTO              | CANTIDAD"))
+	totalsRows = append(totalsRows, styles.Green.Render("📦 PRODUCTO | CANT"))
 	if len(m.Totals) == 0 {
 		totalsRows = append(totalsRows, styles.Gray.Render("  (Sin productos contados)"))
 	} else {
+		nameWidth := panelWidth - 12
+		if nameWidth < 8 {
+			nameWidth = 8
+		}
 		for _, t := range m.Totals {
-			row := fmt.Sprintf("  %-22s | %d", t.Name, t.Quantity)
+			row := fmt.Sprintf("  %-*s | %d", nameWidth, t.Name, t.Quantity)
 			totalsRows = append(totalsRows, row)
 		}
 	}
@@ -165,7 +183,7 @@ func (m Model) viewLoyverse() (string, string) {
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("63")).
 		Padding(1).
-		Width(m.Width/2 - 2).
+		Width(panelWidth).
 		Render(strings.Join(totalsRows, "\n"))
 
 	// Panel derecho: Eventos de Loyverse en orden cronológico
@@ -174,12 +192,20 @@ func (m Model) viewLoyverse() (string, string) {
 	if len(m.LoyverseEvents) == 0 {
 		eventsRows = append(eventsRows, styles.Gray.Render("  (Sin eventos de Loyverse)"))
 	} else {
+		nameWidth := panelWidth / 3
+		if nameWidth < 8 {
+			nameWidth = 8
+		}
 		for _, e := range m.LoyverseEvents {
 			icon := "🔻"
 			if e.Quantity > 0 {
 				icon = "🔺"
 			}
-			row := fmt.Sprintf("%s %-18s | %d | %s", icon, e.Name, e.Quantity, e.CreatedAt)
+			groupLabel := e.GroupName
+			if groupLabel == "" {
+				groupLabel = "sin grupo"
+			}
+			row := fmt.Sprintf("%s %-*s | %3d | [%s]", icon, nameWidth, e.Name, e.Quantity, groupLabel)
 			eventsRows = append(eventsRows, row)
 		}
 	}
@@ -187,7 +213,7 @@ func (m Model) viewLoyverse() (string, string) {
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1).
-		Width(m.Width/2 - 2).
+		Width(panelWidth).
 		Render(strings.Join(eventsRows, "\n"))
 
 	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, totalsBox, "  ", eventsBox)

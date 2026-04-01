@@ -11,12 +11,13 @@ import (
 
 // InventoryService coordina los procesos de negocio relacionados con el inventario.
 type InventoryService struct {
-	db         *sql.DB
-	products   repository.ProductRepository
-	sessions   repository.SessionRepository
-	inventory  repository.InventoryRepository
-	groups     repository.CustomGroupRepository
-	csvStorage *storage.CSVStorage
+	db                *sql.DB
+	products          repository.ProductRepository
+	sessions          repository.SessionRepository
+	inventory         repository.InventoryRepository
+	groups            repository.CustomGroupRepository
+	csvStorage        *storage.CSVStorage
+	onSessionActivate func(sessionID int)
 }
 
 // NewInventoryService crea una instancia del servicio de inventario.
@@ -139,4 +140,16 @@ func (s *InventoryService) GetSessionTotals(ctx context.Context, sessionID int) 
 // GetLoyverseEvents devuelve solo los eventos de Loyverse (ventas y refunds) de una sesión.
 func (s *InventoryService) GetLoyverseEvents(ctx context.Context, sessionID int) ([]entity.LoyverseEvent, error) {
 	return s.inventory.GetLoyverseEvents(ctx, sessionID)
+}
+
+// SetOnSessionActivate registra un callback que se llama cuando se activa una sesión.
+func (s *InventoryService) SetOnSessionActivate(fn func(sessionID int)) {
+	s.onSessionActivate = fn
+}
+
+// ActivateSession notifica que una sesión se activó (para el webhook).
+func (s *InventoryService) ActivateSession(sessionID int) {
+	if s.onSessionActivate != nil {
+		s.onSessionActivate(sessionID)
+	}
 }

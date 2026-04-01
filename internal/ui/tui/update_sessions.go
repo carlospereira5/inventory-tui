@@ -11,12 +11,17 @@ import (
 func (m Model) handleSessionListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
-		if m.Cursor > 0 { m.Cursor-- }
+		if m.Cursor > 0 {
+			m.Cursor--
+		}
 	case "down", "j":
-		if m.Cursor < len(m.Sessions)-1 { m.Cursor++ }
+		if m.Cursor < len(m.Sessions)-1 {
+			m.Cursor++
+		}
 	case "enter":
 		if len(m.Sessions) > 0 {
 			m.ActiveSession = &m.Sessions[m.Cursor]
+			m.Service.ActivateSession(m.ActiveSession.ID)
 			m.State = StateScanning
 			m.TextInput.Focus()
 			m.StatusMsg = ""
@@ -35,7 +40,9 @@ func (m Model) handleSessionListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.Sessions) > 0 {
 			_ = m.Service.DeleteSession(context.Background(), m.Sessions[m.Cursor].ID)
 			m.updateSessions()
-			if m.Cursor >= len(m.Sessions) && m.Cursor > 0 { m.Cursor-- }
+			if m.Cursor >= len(m.Sessions) && m.Cursor > 0 {
+				m.Cursor--
+			}
 		}
 	case "q":
 		return m, tea.Quit
@@ -56,8 +63,12 @@ func (m Model) handleSessionCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err == nil {
 				m.updateSessions()
 				for i, s := range m.Sessions {
-					if s.ID == id { m.ActiveSession = &m.Sessions[i]; break }
+					if s.ID == id {
+						m.ActiveSession = &m.Sessions[i]
+						break
+					}
 				}
+				m.Service.ActivateSession(id)
 				m.State = StateScanning
 				m.TextInput.Focus()
 			}

@@ -22,10 +22,16 @@ type MsgLoyverseEventsLoaded struct {
 
 // MsgCatalogLoaded informa que el CSV de productos se ha procesado.
 type MsgCatalogLoaded struct {
-	Count     int
-	File      string
-	Err       error
-	IsCatalog bool // true = catálogo, false = grupos
+	Count int
+	File  string
+	Err   error
+}
+
+// MsgGroupsLoaded informa que el CSV de grupos personalizados se ha procesado.
+type MsgGroupsLoaded struct {
+	Count int
+	File  string
+	Err   error
 }
 
 // MsgSessionsLoaded informa que la lista de sesiones está lista.
@@ -38,7 +44,7 @@ type MsgSessionsLoaded struct {
 func (m Model) CmdLoadCatalog() tea.Cmd {
 	return func() tea.Msg {
 		count, file, err := m.Service.LoadCatalog(context.Background())
-		return MsgCatalogLoaded{Count: count, File: file, Err: err, IsCatalog: true}
+		return MsgCatalogLoaded{Count: count, File: file, Err: err}
 	}
 }
 
@@ -54,7 +60,7 @@ func (m Model) CmdLoadSessions() tea.Cmd {
 func (m Model) CmdLoadGroups() tea.Cmd {
 	return func() tea.Msg {
 		count, file, err := m.Service.LoadGroups(context.Background())
-		return MsgCatalogLoaded{Count: count, File: file, Err: err, IsCatalog: false}
+		return MsgGroupsLoaded{Count: count, File: file, Err: err}
 	}
 }
 
