@@ -65,7 +65,8 @@ func (s *CSVStorage) FindGroupsCSV() (string, error) {
 	return "", fmt.Errorf("no se encontró grupos.csv en la raíz")
 }
 
-// ImportProducts lee un CSV e inserta los productos en la base de datos usando concurrencia.
+// ImportProducts lee un CSV e inserta los productos en la base de datos.
+// Usa una sola transacción para todos los inserts (rápido y atómico).
 func (s *CSVStorage) ImportProducts(ctx context.Context, db *sql.DB, filePath string) (int, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -78,59 +79,52 @@ func (s *CSVStorage) ImportProducts(ctx context.Context, db *sql.DB, filePath st
 		return 0, err
 	}
 
-	// Usamos un patrón productor-consumidor para optimizar la inserción masiva.
+	// Leer todas las líneas primero (sin DB)
 	type record struct{ barcode, name string }
-	records := make(chan record, 100)
-	errChan := make(chan error, 1)
-	countChan := make(chan int)
-
-	go func() {
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			errChan <- err
-			return
-		}
-		defer tx.Rollback()
-
-		count := 0
-		for rec := range records {
-			p := &entity.Product{Barcode: rec.barcode, Name: rec.name}
-			// Reutilizamos la lógica del repo de productos para el Upsert.
-			if err := s.productRepo.Upsert(ctx, p); err != nil {
-				errChan <- err
-				return
-			}
-			count++
-		}
-		if err := tx.Commit(); err != nil {
-			errChan <- err
-			return
-		}
-		countChan <- count
-	}()
-
-	var parseErr error
+	var records []record
 	for {
 		line, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			parseErr = err
-			break
+			return 0, err
 		}
 		if len(line) >= 14 && line[13] != "" {
-			records <- record{barcode: line[13], name: line[2]}
+			records = append(records, record{barcode: line[13], name: line[2]})
 		}
 	}
-	close(records)
 
-	select {
-	case err := <-errChan:
-		return 0, err
-	case count := <-countChan:
-		return count, parseErr
+	// Insertar todo en una sola transacción
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("error al iniciar transacción: %w", err)
 	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO products (barcode, name) 
+		VALUES (?, ?) 
+		ON CONFLICT(barcode) DO UPDATE SET name = excluded.name;
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("error al preparar statement: %w", err)
+	}
+	defer stmt.Close()
+
+	count := 0
+	for _, rec := range records {
+		if _, err := stmt.ExecContext(ctx, rec.barcode, rec.name); err != nil {
+			return 0, fmt.Errorf("error al insertar %s: %w", rec.barcode, err)
+		}
+		count++
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("error al confirmar transacción: %w", err)
+	}
+
+	return count, nil
 }
 
 // ExportSession guarda el historial de una sesión en un nuevo archivo CSV.

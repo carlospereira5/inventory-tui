@@ -29,10 +29,10 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	// Crítico en Android/Termux donde el filesystem tiene locks más agresivos.
 	_, _ = db.Exec("PRAGMA busy_timeout = 5000")
 
-	// SQLite solo soporta un escritor a la vez. Limitar a 1 conexión
-	// evita contención y "database is locked" con múltiples goroutines.
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	// WAL mode permite lectores concurrentes con un escritor.
+	// Con busy_timeout, las escrituras concurrentes se resuelven con reintentos automáticos.
+	db.SetMaxOpenConns(4) // Suficiente para concurrencia sin saturar
+	db.SetMaxIdleConns(4)
 
 	if err := initSchema(db); err != nil {
 		return nil, err
