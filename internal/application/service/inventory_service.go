@@ -10,10 +10,10 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"inventory-tui/internal/domain/entity"
-	"inventory-tui/internal/domain/repository"
-	"inventory-tui/internal/infrastructure/loyverse"
-	"inventory-tui/internal/infrastructure/storage"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/domain/repository"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/storage"
 )
 
 // InventoryService coordina los procesos de negocio relacionados con el inventario.

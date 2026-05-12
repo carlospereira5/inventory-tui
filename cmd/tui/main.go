@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"inventory-tui/internal/application/service"
-	"inventory-tui/internal/infrastructure/database"
-	"inventory-tui/internal/infrastructure/loyverse"
-	"inventory-tui/internal/infrastructure/storage"
-	"inventory-tui/internal/logging"
-	"inventory-tui/internal/ui/tui"
+	"github.com/carlospereira5/inventory-tui/internal/application/service"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/database"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/storage"
+	"github.com/carlospereira5/inventory-tui/internal/logging"
+	"github.com/carlospereira5/inventory-tui/internal/ui/tui"
 	"log"
 	"log/slog"
 	"net/http"

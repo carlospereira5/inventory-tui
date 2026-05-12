@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
 )
 
 // capturedLevel es el nivel de stock capturado desde el POST /inventory del mock.

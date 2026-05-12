@@ -2,7 +2,7 @@ package tui
 
 import (
 	"fmt"
-	"inventory-tui/internal/ui/tui/styles"
+	"github.com/carlospereira5/inventory-tui/internal/ui/tui/styles"
 	"strings"
 	"time"
 

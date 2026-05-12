@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
 )
 
 // ProductRepository define las operaciones para el catálogo maestro de productos.

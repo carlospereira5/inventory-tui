@@ -41,7 +41,7 @@ func TestDeleteScan_quickAddDeltaFullyRemoved(t *testing.T) {
 	sid := createSession(t, svc, "test")
 	ctx := context.Background()
 
-	svc.ScanProduct(ctx, sid, "7896789") // delta=1, total=1
+	svc.ScanProduct(ctx, sid, "7896789")     // delta=1, total=1
 	svc.AddQuickScan(ctx, sid, "7896789", 4) // delta=4, total=5
 
 	history, err := svc.GetHistory(ctx, sid)

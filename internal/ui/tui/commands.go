@@ -3,8 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
-	"inventory-tui/internal/domain/entity"
-	"inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
 	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -116,9 +116,9 @@ func (m Model) CmdLoadLoyverseEvents() tea.Cmd {
 
 // MsgFilterCategoriesLoaded informa que las categorías para el filtro de webhook están listas.
 type MsgFilterCategoriesLoaded struct {
-	Categories      []loyverse.Category
+	Categories        []loyverse.Category
 	ActiveCategoryIDs map[string]bool
-	Err             error
+	Err               error
 }
 
 // MsgCategoryToggled informa el resultado de activar/desactivar una categoría.

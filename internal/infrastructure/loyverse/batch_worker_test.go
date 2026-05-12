@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
 )
 
 // batchServer es un servidor de test configurable para POST /inventory.

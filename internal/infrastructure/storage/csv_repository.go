@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"inventory-tui/internal/domain/entity"
-	"inventory-tui/internal/domain/repository"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/domain/repository"
 )
 
 // CSVStorage gestiona la persistencia y lectura de archivos CSV.

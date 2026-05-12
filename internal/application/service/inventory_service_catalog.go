@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	"inventory-tui/internal/domain/entity"
-	"inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
 )
 
 // LoadCatalogFromLoyverse importa todos los items de Loyverse al catálogo local.

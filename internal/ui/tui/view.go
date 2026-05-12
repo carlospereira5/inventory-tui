@@ -2,8 +2,8 @@ package tui
 
 import (
 	"fmt"
-	"inventory-tui/internal/domain/entity"
-	"inventory-tui/internal/ui/tui/styles"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/ui/tui/styles"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"

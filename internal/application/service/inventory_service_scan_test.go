@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"inventory-tui/internal/application/service"
-	"inventory-tui/internal/infrastructure/database"
-	"inventory-tui/internal/infrastructure/storage"
+	"github.com/carlospereira5/inventory-tui/internal/application/service"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/database"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/storage"
 )
 
 // setupTestEnv wires up a fully in-memory service + DB and seeds one product.

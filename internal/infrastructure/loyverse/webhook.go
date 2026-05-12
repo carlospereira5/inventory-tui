@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"inventory-tui/internal/domain/repository"
+	"github.com/carlospereira5/inventory-tui/internal/domain/repository"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

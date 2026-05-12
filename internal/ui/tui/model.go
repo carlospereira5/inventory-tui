@@ -1,9 +1,9 @@
 package tui
 
 import (
-	"inventory-tui/internal/application/service"
-	"inventory-tui/internal/domain/entity"
-	"inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/application/service"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
 
 	"github.com/charmbracelet/bubbles/textinput"
 )
@@ -12,18 +12,18 @@ import (
 type State int
 
 const (
-	StateSessionList       State = iota // Lista de sesiones existentes.
-	StateSessionCreate                  // Formulario para crear una nueva sesión.
-	StateSessionRename                  // Formulario para renombrar una sesión existente.
-	StateScanning                       // Pantalla de escaneo de productos.
-	StateQuickAdd                       // Overlay para agregar cantidad rápida al último producto escaneado.
-	StateHistory                        // Historial de escaneos en la sesión actual.
-	StateLoyverse                       // Pantalla de totales y eventos de Loyverse.
-	StateSyncConfirm                    // Pantalla de confirmación de modo de sync (reemplazar vs sumar).
-	StateSyncLoyverse                   // Pantalla de sincronización con Loyverse.
-	StateNewProduct                     // Overlay para agregar producto desconocido a Loyverse.
-	StateFilterCategories               // Overlay para activar/desactivar categorías de filtrado de webhook.
-	StateHelp                           // Overlay de ayuda con todos los atajos de teclado.
+	StateSessionList      State = iota // Lista de sesiones existentes.
+	StateSessionCreate                 // Formulario para crear una nueva sesión.
+	StateSessionRename                 // Formulario para renombrar una sesión existente.
+	StateScanning                      // Pantalla de escaneo de productos.
+	StateQuickAdd                      // Overlay para agregar cantidad rápida al último producto escaneado.
+	StateHistory                       // Historial de escaneos en la sesión actual.
+	StateLoyverse                      // Pantalla de totales y eventos de Loyverse.
+	StateSyncConfirm                   // Pantalla de confirmación de modo de sync (reemplazar vs sumar).
+	StateSyncLoyverse                  // Pantalla de sincronización con Loyverse.
+	StateNewProduct                    // Overlay para agregar producto desconocido a Loyverse.
+	StateFilterCategories              // Overlay para activar/desactivar categorías de filtrado de webhook.
+	StateHelp                          // Overlay de ayuda con todos los atajos de teclado.
 )
 
 // Model representa el estado global de la interfaz de usuario.
@@ -46,9 +46,9 @@ type Model struct {
 	Cursor               int
 	HistoryScrollOffset  int
 	LoyverseScrollOffset int
-	TotalsCursor         int  // cursor independiente para el tab de Totales
-	TotalsScrollOffset   int  // scroll independiente para el tab de Totales
-	LoyverseSubTab       int  // 0 = Totales, 1 = Eventos
+	TotalsCursor         int          // cursor independiente para el tab de Totales
+	TotalsScrollOffset   int          // scroll independiente para el tab de Totales
+	LoyverseSubTab       int          // 0 = Totales, 1 = Eventos
 	SelectedSessions     map[int]bool // session.ID → seleccionada para sync
 	PendingDelete        bool         // true cuando se espera confirmación de borrado (segundo 'd')
 	HelpPrevState        State        // estado desde el que se abrió el help, para restaurarlo al cerrar
@@ -65,7 +65,7 @@ type Model struct {
 
 	// StateNewProduct: formulario multi-step para agregar producto desconocido a Loyverse.
 	NewProductBarcode    string
-	NewProductStep       int               // 0=nombre, 1=precio, 2=categoría, 3=confirmar
+	NewProductStep       int // 0=nombre, 1=precio, 2=categoría, 3=confirmar
 	NewProductNameInput  textinput.Model
 	NewProductPriceInput textinput.Model
 	NewProductCategories []loyverse.Category
@@ -73,9 +73,9 @@ type Model struct {
 	NewProductErr        string
 
 	// StateFilterCategories: overlay para activar/desactivar categorías de filtrado de webhook.
-	FilterCategories   []loyverse.Category // todas las categorías disponibles
-	ActiveCategoryIDs  map[string]bool     // category_id → activa (espejo de la DB)
-	FilterCatCursor    int                 // cursor en la lista de categorías
+	FilterCategories  []loyverse.Category // todas las categorías disponibles
+	ActiveCategoryIDs map[string]bool     // category_id → activa (espejo de la DB)
+	FilterCatCursor   int                 // cursor en la lista de categorías
 }
 
 // NewModel inicializa el modelo con sus valores por defecto y sub-componentes.
@@ -112,15 +112,15 @@ func NewModel(svc *service.InventoryService) Model {
 	pi.Width = 20
 
 	return Model{
-		Service:          svc,
-		State:            StateSessionList,
-		TextInput:        ti,
-		SessionInput:     si,
-		QuickAddInput:    qi,
-		HistorySearch:    hs,
-		TotalsSearch:     ts,
-		CatalogStatus:    "Cargando catálogo...",
-		GroupsStatus:     "Cargando grupos...",
+		Service:              svc,
+		State:                StateSessionList,
+		TextInput:            ti,
+		SessionInput:         si,
+		QuickAddInput:        qi,
+		HistorySearch:        hs,
+		TotalsSearch:         ts,
+		CatalogStatus:        "Cargando catálogo...",
+		GroupsStatus:         "Cargando grupos...",
 		SyncModel:            NewSyncModel(svc),
 		SelectedSessions:     make(map[int]bool),
 		NewProductNameInput:  ni,

@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
 
 	"github.com/google/go-cmp/cmp"
 )

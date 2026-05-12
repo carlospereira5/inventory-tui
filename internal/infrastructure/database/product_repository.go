@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
-	"inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
 )
 
 // SQLiteProductRepository implementa la interfaz ProductRepository usando SQLite.

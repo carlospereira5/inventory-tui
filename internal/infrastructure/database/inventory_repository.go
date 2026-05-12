@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
 	"strings"
 )
 

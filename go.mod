@@ -1,4 +1,4 @@
-module inventory-tui
+module github.com/carlospereira5/inventory-tui
 
 go 1.25.0
 

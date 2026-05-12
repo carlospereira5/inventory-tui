@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"inventory-tui/internal/ui/tui/styles"
+	"github.com/carlospereira5/inventory-tui/internal/ui/tui/styles"
 )
 
 // viewNewProduct renderiza el overlay de alta de producto desconocido a Loyverse.

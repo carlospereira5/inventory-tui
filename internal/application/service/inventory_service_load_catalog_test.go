@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
 )
 
 // mockItemsServer crea un httptest.Server que sirve GET /items con los items dados.
@@ -78,7 +78,7 @@ func TestLoadCatalogFromLoyverse_skipsVariantsWithoutBarcode(t *testing.T) {
 
 	items := []loyverse.LoyverseItem{
 		{ID: "item-1", Name: "Sin barcode", Variants: []loyverse.LoyverseVariant{
-			{ID: "var-1", Barcode: ""},             // sin barcode — debe ignorarse
+			{ID: "var-1", Barcode: ""},              // sin barcode — debe ignorarse
 			{ID: "var-2", Barcode: "9999999999999"}, // con barcode — debe importarse
 		}},
 	}

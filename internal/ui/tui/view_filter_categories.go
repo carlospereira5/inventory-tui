@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"inventory-tui/internal/ui/tui/styles"
+	"github.com/carlospereira5/inventory-tui/internal/ui/tui/styles"
 )
 
 // viewFilterCategories renderiza el overlay de selección de categorías activas para webhook.

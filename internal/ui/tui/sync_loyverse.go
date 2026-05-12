@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"inventory-tui/internal/application/service"
-	"inventory-tui/internal/infrastructure/loyverse"
-	"inventory-tui/internal/ui/tui/styles"
+	"github.com/carlospereira5/inventory-tui/internal/application/service"
+	"github.com/carlospereira5/inventory-tui/internal/infrastructure/loyverse"
+	"github.com/carlospereira5/inventory-tui/internal/ui/tui/styles"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -36,7 +36,7 @@ type SyncErrorMsg struct{ Err error }
 // SyncModel contiene el estado de la pantalla de sincronización con Loyverse.
 type SyncModel struct {
 	Service    *service.InventoryService
-	SessionIDs []int            // sesiones a sincronizar; nil = todas
+	SessionIDs []int             // sesiones a sincronizar; nil = todas
 	Mode       loyverse.SyncMode // modo de sync: reemplazar o sumar
 	State      SyncState
 	Spinner    spinner.Model

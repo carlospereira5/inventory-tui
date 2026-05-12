@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
-	"inventory-tui/internal/domain/entity"
+	"github.com/carlospereira5/inventory-tui/internal/domain/entity"
 )
 
 // SQLiteSessionRepository gestiona las sesiones de inventario en la base de datos SQLite.
