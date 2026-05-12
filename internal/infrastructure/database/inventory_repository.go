@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"inventory-tui/internal/domain/entity"
+	"strings"
 )
 
 // SQLiteInventoryRepository gestiona los conteos de inventario individuales en SQLite.
@@ -113,14 +114,29 @@ func (r *SQLiteInventoryRepository) GetSessionTotals(ctx context.Context, sessio
 }
 
 // GetStockSummary retorna el stock calculado por producto desde el historial de escaneos.
+// sessionIDs filtra por sesiones específicas.
+//
+// ADVERTENCIA: si sessionIDs está vacío (nil o len==0), la query NO tiene cláusula WHERE
+// y agrega el stock de TODAS las sesiones históricas. Esto es intencional para soportar
+// "sync global", pero es un footgun: nunca llamar con slice vacío a menos que se quiera
+// incluir absolutamente todo el historial.
+//
 // Retorna un mapa: barcode → cantidad total escaneada.
-func (r *SQLiteInventoryRepository) GetStockSummary(ctx context.Context) (map[string]float64, error) {
-	query := `
-		SELECT s.barcode, SUM(s.quantity_delta) as total
-		FROM inventory_scans s
-		GROUP BY s.barcode
-	`
-	rows, err := r.db.QueryContext(ctx, query)
+func (r *SQLiteInventoryRepository) GetStockSummary(ctx context.Context, sessionIDs []int) (map[string]float64, error) {
+	query := `SELECT s.barcode, SUM(s.quantity_delta) as total FROM inventory_scans s`
+	args := make([]interface{}, 0, len(sessionIDs))
+
+	if len(sessionIDs) > 0 {
+		placeholders := make([]string, len(sessionIDs))
+		for i, id := range sessionIDs {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		query += ` WHERE s.session_id IN (` + strings.Join(placeholders, ",") + `)`
+	}
+	query += ` GROUP BY s.barcode`
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying stock summary: %w", err)
 	}

@@ -86,6 +86,19 @@ func (c *Client) getJSON(path string, v interface{}) error {
 	return json.NewDecoder(resp.Body).Decode(v)
 }
 
+// NewClientWithBaseURL creates a Loyverse client pointing to a custom base URL.
+// Use in tests with httptest.NewServer to avoid calling the real API.
+func NewClientWithBaseURL(token, baseURL string) (*Client, error) {
+	if token == "" {
+		return nil, fmt.Errorf("token is required")
+	}
+	return &Client{
+		httpClient: newHTTPClient(),
+		baseURL:    baseURL,
+		token:      token,
+	}, nil
+}
+
 // postJSON ejecuta un POST con un body JSON y decodifica la respuesta en v.
 func (c *Client) postJSON(path string, body interface{}, v interface{}) error {
 	bodyBytes, err := json.Marshal(body)

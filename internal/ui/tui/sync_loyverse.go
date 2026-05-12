@@ -35,14 +35,16 @@ type SyncErrorMsg struct{ Err error }
 
 // SyncModel contiene el estado de la pantalla de sincronización con Loyverse.
 type SyncModel struct {
-	Service  *service.InventoryService
-	State    SyncState
-	Spinner  spinner.Model
-	Progress progress.Model
-	Result   *loyverse.SyncResult
-	Err      error
-	Width    int
-	Help     string
+	Service    *service.InventoryService
+	SessionIDs []int            // sesiones a sincronizar; nil = todas
+	Mode       loyverse.SyncMode // modo de sync: reemplazar o sumar
+	State      SyncState
+	Spinner    spinner.Model
+	Progress   progress.Model
+	Result     *loyverse.SyncResult
+	Err        error
+	Width      int
+	Help       string
 }
 
 // NewSyncModel crea un nuevo modelo de sincronización.
@@ -104,6 +106,18 @@ func (m SyncModel) View() string {
 	case SyncIdle:
 		b.WriteString(styles.Gray.Render("Presiona Enter para iniciar la sincronización."))
 		b.WriteString("\n\n")
+		if len(m.SessionIDs) > 0 {
+			b.WriteString(styles.Green.Render(fmt.Sprintf("Sesiones: %d seleccionadas", len(m.SessionIDs))))
+		} else {
+			b.WriteString(styles.Gray.Render("Sesiones: todas"))
+		}
+		b.WriteString("\n")
+		if m.Mode == loyverse.SyncModeAdd {
+			b.WriteString(styles.Yellow.Render("Modo: Sumar al stock existente en Loyverse"))
+		} else {
+			b.WriteString(styles.Blue.Render("Modo: Reemplazar stock en Loyverse"))
+		}
+		b.WriteString("\n\n")
 		b.WriteString(styles.Gray.Render("Se obtendrá el catálogo de Loyverse, se calculará el stock local y se enviarán las actualizaciones."))
 
 	case SyncSyncing:
@@ -152,13 +166,16 @@ func (m SyncModel) viewCompleted() string {
 }
 
 // CmdSync ejecuta la sincronización con Loyverse en background.
+// Usa m.SessionIDs para filtrar y m.Mode para determinar si reemplaza o suma.
 func (m SyncModel) CmdSync() tea.Cmd {
+	sessionIDs := m.SessionIDs
+	mode := m.Mode
 	return func() tea.Msg {
-		slog.Info("sync: comando CmdSync iniciado")
+		slog.Info("sync: comando CmdSync iniciado", "session_ids", sessionIDs, "mode", mode)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
-		result, err := m.Service.SyncWithLoyverse(ctx)
+		result, err := m.Service.SyncWithLoyverse(ctx, sessionIDs, mode)
 		if err != nil {
 			slog.Error("sync: CmdSync fallido", "err", err)
 			return SyncErrorMsg{Err: err}

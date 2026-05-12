@@ -53,3 +53,10 @@ func (r *SQLiteSessionRepository) Delete(ctx context.Context, id int) error {
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
+
+// UpdateName cambia el nombre de una sesión existente.
+func (r *SQLiteSessionRepository) UpdateName(ctx context.Context, id int, name string) error {
+	query := "UPDATE inventory_sessions SET name = ? WHERE id = ?"
+	_, err := r.db.ExecContext(ctx, query, name, id)
+	return err
+}

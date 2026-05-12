@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -93,6 +94,10 @@ func initSchema(db *sql.DB) error {
 		SELECT session_id, barcode, SUM(quantity_delta) as total
 		FROM inventory_scans
 		GROUP BY session_id, barcode;`,
+		// Categorías activas para filtrado de eventos de webhook (sustituto de custom_groups).
+		`CREATE TABLE IF NOT EXISTS active_categories (
+			category_id TEXT PRIMARY KEY
+		);`,
 	}
 
 	for _, q := range queries {
@@ -100,6 +105,14 @@ func initSchema(db *sql.DB) error {
 			return fmt.Errorf("error al ejecutar migración: %w", err)
 		}
 	}
+
+	// Migración idempotente: agrega category_id a products si no existe (DBs existentes).
+	if _, err := db.Exec(`ALTER TABLE products ADD COLUMN category_id TEXT`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			return fmt.Errorf("migración category_id: %w", err)
+		}
+	}
+
 	return nil
 }
 

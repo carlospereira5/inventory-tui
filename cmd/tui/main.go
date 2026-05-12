@@ -38,9 +38,10 @@ func main() {
 	invRepo := database.NewSQLiteInventoryRepository(db.Conn)
 	loyverseRepo := database.NewSQLiteLoyverseEventRepository(db.Conn)
 	groupRepo := database.NewSQLiteCustomGroupRepository(db.Conn)
+	activeCatRepo := database.NewSQLiteActiveCategoryRepository(db.Conn)
 	csvStore := storage.NewCSVStorage(productRepo, groupRepo)
 
-	svc := service.NewInventoryService(db.Conn, productRepo, sessionRepo, invRepo, loyverseRepo, groupRepo, csvStore)
+	svc := service.NewInventoryService(db.Conn, productRepo, sessionRepo, invRepo, loyverseRepo, groupRepo, activeCatRepo, csvStore)
 
 	// Webhook de Loyverse.
 	secret := os.Getenv("LOYVERSE_SECRET")

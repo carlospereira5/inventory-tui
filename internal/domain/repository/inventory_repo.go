@@ -28,6 +28,9 @@ type SessionRepository interface {
 
 	// Delete elimina una sesión (y por cascada todos sus conteos asociados).
 	Delete(ctx context.Context, id int) error
+
+	// UpdateName cambia el nombre de una sesión existente.
+	UpdateName(ctx context.Context, id int, name string) error
 }
 
 // InventoryRepository gestiona los conteos individuales dentro de las sesiones.
@@ -48,8 +51,9 @@ type InventoryRepository interface {
 	GetSessionTotals(ctx context.Context, sessionID int) ([]entity.SessionTotals, error)
 
 	// GetStockSummary retorna el stock calculado por producto desde el historial de escaneos.
+	// sessionIDs filtra por sesiones específicas; si está vacío, incluye todas las sesiones.
 	// Retorna un mapa: barcode → cantidad total escaneada.
-	GetStockSummary(ctx context.Context) (map[string]float64, error)
+	GetStockSummary(ctx context.Context, sessionIDs []int) (map[string]float64, error)
 }
 
 // LoyverseEventRepository gestiona los eventos de Loyverse (ventas y refunds) en una tabla separada.
@@ -62,6 +66,20 @@ type LoyverseEventRepository interface {
 
 	// DeleteEvent elimina un evento de Loyverse por su ID.
 	DeleteEvent(ctx context.Context, eventID int) error
+}
+
+// ActiveCategoryRepository gestiona las categorías de Loyverse activas para filtrar eventos de webhook.
+// Una categoría activa significa "estoy inventariando esta categoría ahora mismo".
+// Solo los productos en categorías activas generan eventos cuando Loyverse reporta ventas.
+type ActiveCategoryRepository interface {
+	// GetAll devuelve el mapa category_id → active de todas las categorías conocidas.
+	GetAll(ctx context.Context) (map[string]bool, error)
+
+	// IsActive informa si una categoría específica está activa.
+	IsActive(ctx context.Context, categoryID string) (bool, error)
+
+	// SetActive activa o desactiva una categoría (insert o delete).
+	SetActive(ctx context.Context, categoryID string, active bool) error
 }
 
 // CustomGroupRepository gestiona los grupos personalizados de productos para descuentos de Loyverse.

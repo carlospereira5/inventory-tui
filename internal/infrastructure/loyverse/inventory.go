@@ -88,3 +88,13 @@ func BuildStoreMap(records []InventoryRecord) map[string]string {
 	}
 	return storeMap
 }
+
+// BuildCurrentStockMap construye un mapa (variant_id|store_id) → stock actual.
+// Se usa en SyncModeAdd para sumar el conteo local al stock existente en Loyverse.
+func BuildCurrentStockMap(records []InventoryRecord) map[string]float64 {
+	m := make(map[string]float64, len(records))
+	for _, r := range records {
+		m[r.VariantID+"|"+r.StoreID] = r.Stock
+	}
+	return m
+}

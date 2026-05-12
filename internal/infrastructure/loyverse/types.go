@@ -29,12 +29,13 @@ type LineItem struct {
 }
 
 // LoyverseItem representa un producto del catálogo de Loyverse.
-// NOTA: La API de Loyverse NO incluye "stores" en la respuesta de GET /items.
-// El store_id se obtiene desde GET /inventory.
+// NOTA: La API de Loyverse usa "item_name" (no "name") y NO incluye "stores"
+// en la respuesta de GET /items — el store_id se obtiene desde GET /inventory.
 type LoyverseItem struct {
-	ID       string            `json:"id"`
-	Name     string            `json:"name"`
-	Variants []LoyverseVariant `json:"variants"`
+	ID         string            `json:"id"`
+	Name       string            `json:"item_name"`
+	CategoryID string            `json:"category_id"`
+	Variants   []LoyverseVariant `json:"variants"`
 }
 
 // LoyverseVariant representa una variante de un item en Loyverse.
@@ -72,11 +73,22 @@ type VariantMap struct {
 	ByName    map[string]VariantInfo
 }
 
+// SyncMode define cómo se combinan los valores locales con el stock actual en Loyverse.
+type SyncMode int
+
+const (
+	// SyncModeReplace sobreescribe el stock en Loyverse con el conteo local.
+	SyncModeReplace SyncMode = iota
+	// SyncModeAdd suma el conteo local al stock actual en Loyverse.
+	SyncModeAdd
+)
+
 // SyncResult contiene el resultado de una sincronización.
 type SyncResult struct {
 	Total   int
 	Success int
 	Failed  int
+	Mode    SyncMode
 	Errors  []SyncError
 }
 
@@ -85,6 +97,37 @@ type SyncError struct {
 	ProductName string
 	Barcode     string
 	Error       string
+}
+
+// Category representa una categoría de producto en Loyverse.
+type Category struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+// CategoriesResponse es la respuesta paginada de GET /categories.
+type CategoriesResponse struct {
+	Categories []Category `json:"categories"`
+	Cursor     *string    `json:"cursor"`
+}
+
+// CreateVariantRequest es la variante a incluir al crear un nuevo item.
+// default_pricing_type debe ser "FIXED" para que default_price tenga efecto;
+// con "VARIABLE" (el default de la API), el precio es ignorado.
+type CreateVariantRequest struct {
+	DefaultPricingType string  `json:"default_pricing_type"`
+	Price              float64 `json:"default_price"`
+	Barcode            string  `json:"barcode,omitempty"`
+}
+
+// CreateItemRequest es el payload para POST /items.
+// TrackStock debe ser true para que Loyverse registre niveles de inventario.
+type CreateItemRequest struct {
+	ItemName   string                 `json:"item_name"`
+	CategoryID string                 `json:"category_id,omitempty"`
+	TrackStock bool                   `json:"track_stock"`
+	Variants   []CreateVariantRequest `json:"variants"`
 }
 
 // LoyverseAPIError representa un error de la API de Loyverse.

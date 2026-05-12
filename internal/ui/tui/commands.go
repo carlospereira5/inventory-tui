@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"inventory-tui/internal/domain/entity"
+	"inventory-tui/internal/infrastructure/loyverse"
 	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -110,6 +111,86 @@ func (m Model) CmdLoadLoyverseEvents() tea.Cmd {
 			slog.Warn("comando: CmdLoadLoyverseEvents fallido", "session_id", m.ActiveSession.ID, "err", err)
 		}
 		return MsgLoyverseEventsLoaded{Events: events, Err: err}
+	}
+}
+
+// MsgFilterCategoriesLoaded informa que las categorías para el filtro de webhook están listas.
+type MsgFilterCategoriesLoaded struct {
+	Categories      []loyverse.Category
+	ActiveCategoryIDs map[string]bool
+	Err             error
+}
+
+// MsgCategoryToggled informa el resultado de activar/desactivar una categoría.
+type MsgCategoryToggled struct {
+	CategoryID string
+	Active     bool
+	Err        error
+}
+
+// CmdLoadFilterCategories carga las categorías desde Loyverse y el estado activo desde la DB.
+func (m Model) CmdLoadFilterCategories() tea.Cmd {
+	return func() tea.Msg {
+		slog.Debug("comando: CmdLoadFilterCategories ejecutándose")
+		cats, err := m.Service.GetCategories()
+		if err != nil {
+			slog.Warn("comando: CmdLoadFilterCategories — GetCategories fallido", "err", err)
+			return MsgFilterCategoriesLoaded{Err: err}
+		}
+		active, err := m.Service.GetActiveCategories(context.Background())
+		if err != nil {
+			slog.Warn("comando: CmdLoadFilterCategories — GetActiveCategories fallido", "err", err)
+			return MsgFilterCategoriesLoaded{Err: err}
+		}
+		slog.Debug("comando: CmdLoadFilterCategories completado", "count", len(cats), "active", len(active))
+		return MsgFilterCategoriesLoaded{Categories: cats, ActiveCategoryIDs: active}
+	}
+}
+
+// CmdToggleCategory activa o desactiva una categoría en la DB.
+func (m Model) CmdToggleCategory(categoryID string, active bool) tea.Cmd {
+	return func() tea.Msg {
+		err := m.Service.SetCategoryActive(context.Background(), categoryID, active)
+		if err != nil {
+			slog.Error("comando: CmdToggleCategory fallido", "category_id", categoryID, "active", active, "err", err)
+		}
+		return MsgCategoryToggled{CategoryID: categoryID, Active: active, Err: err}
+	}
+}
+
+// MsgCategoriesLoaded informa que las categorías de Loyverse están listas.
+type MsgCategoriesLoaded struct {
+	Categories []loyverse.Category
+	Err        error
+}
+
+// MsgProductCreated informa que el producto fue creado en Loyverse y en el catálogo local.
+type MsgProductCreated struct {
+	Product *entity.Product
+	Err     error
+}
+
+// CmdFetchCategories obtiene las categorías de Loyverse en background.
+func (m Model) CmdFetchCategories() tea.Cmd {
+	return func() tea.Msg {
+		slog.Debug("comando: CmdFetchCategories ejecutándose")
+		cats, err := m.Service.GetCategories()
+		if err != nil {
+			slog.Warn("comando: CmdFetchCategories fallido", "err", err)
+		}
+		return MsgCategoriesLoaded{Categories: cats, Err: err}
+	}
+}
+
+// CmdCreateProduct crea el producto en Loyverse y en el catálogo local en background.
+func (m Model) CmdCreateProduct(barcode, name string, price float64, categoryID string) tea.Cmd {
+	return func() tea.Msg {
+		slog.Info("comando: CmdCreateProduct ejecutándose", "barcode", barcode, "name", name)
+		p, err := m.Service.CreateProduct(context.Background(), barcode, name, price, categoryID)
+		if err != nil {
+			slog.Error("comando: CmdCreateProduct fallido", "err", err)
+		}
+		return MsgProductCreated{Product: p, Err: err}
 	}
 }
 

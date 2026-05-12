@@ -2,9 +2,10 @@ package entity
 
 // Product representa un producto en el catálogo maestro.
 type Product struct {
-	ID      int
-	Barcode string // Código de barras único para identificar el producto.
-	Name    string // Nombre descriptivo del producto.
+	ID         int
+	Barcode    string // Código de barras único para identificar el producto.
+	Name       string // Nombre descriptivo del producto.
+	CategoryID string // ID de categoría Loyverse (vacío si viene de CSV).
 }
 
 // Session representa una sesión de conteo de inventario (ej. Almacén 1).

@@ -4,9 +4,25 @@ import (
 	"fmt"
 	"inventory-tui/internal/ui/tui/styles"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
+
+// formatSessionDate convierte la fecha de SQLite al formato "DD/MM/YYYY HH:MM hrs".
+// Maneja tanto el formato ISO 8601 (T y Z) como el de CURRENT_TIMESTAMP (espacio).
+func formatSessionDate(s string) string {
+	for _, layout := range []string{
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+	} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.Format("02/01/2006 15:04 hrs")
+		}
+	}
+	return s // fallback: devuelve el string original sin cambios
+}
 
 func (m Model) viewSessionList() (string, string) {
 	title := styles.SelectedStyle.Render("📁 SESIONES DE INVENTARIO")
@@ -21,7 +37,11 @@ func (m Model) viewSessionList() (string, string) {
 	} else {
 		for i, ses := range m.Sessions {
 			cursor := "  "
-			row := fmt.Sprintf("%s (%s)", ses.Name, ses.CreatedAt)
+			checkbox := "[ ]"
+			if m.SelectedSessions[ses.ID] {
+				checkbox = styles.Green.Render("[✓]")
+			}
+			row := fmt.Sprintf("%s %s (%s)", checkbox, ses.Name, formatSessionDate(ses.CreatedAt))
 			if m.Cursor == i {
 				cursor = styles.Blue.Render("▸ ")
 				rows = append(rows, cursor+styles.SelectedStyle.Render(row))
@@ -39,7 +59,10 @@ func (m Model) viewSessionList() (string, string) {
 		strings.Join(rows, "\n"),
 	)
 
-	help := styles.HelpStyle.Render("n: nueva • enter: entrar • e: exportar • d: borrar • q: salir")
+	help := styles.HelpStyle.Render("n: nueva  enter: entrar  r: renombrar  e: exportar  d: borrar  espacio: seleccionar  s: sync  q: salir  ?: ayuda")
+	if m.PendingDelete {
+		help = styles.WarnStyle.Render("⚠  d: confirmar borrado de sesión   cualquier otra tecla: cancelar")
+	}
 	return body, help
 }
 
@@ -55,7 +78,27 @@ func (m Model) viewSessionCreate() (string, string) {
 		m.SessionInput.View(),
 	)
 
-	help := styles.HelpStyle.Render("enter: crear • esc: cancelar")
+	help := styles.HelpStyle.Render("enter: crear  esc: cancelar")
+	return body, help
+}
+
+func (m Model) viewSessionRename() (string, string) {
+	var sessionName string
+	if len(m.Sessions) > 0 {
+		sessionName = m.Sessions[m.Cursor].Name
+	}
+	title := styles.SelectedStyle.Render("✏️  RENOMBRAR SESIÓN")
+	prompt := fmt.Sprintf("Nuevo nombre para %q:", sessionName)
+
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		prompt,
+		"",
+		m.SessionInput.View(),
+	)
+
+	help := styles.HelpStyle.Render("enter: guardar  esc: cancelar")
 	return body, help
 }
 
@@ -63,12 +106,22 @@ func (m Model) viewScanning() (string, string) {
 	// Panel de Sesión
 	sessionInfo := styles.Purple.Render(fmt.Sprintf("📍 %s", m.ActiveSession.Name))
 
+	// Los dos paneles deben caber dentro de innerW.
+	// Cada caja tiene Border(2) + Padding(2) = 4 chars de overhead; el gap = 2.
+	// Budget total para los dos Width() = innerW - 4 - 2 - 4 = innerW - 10.
+	budget := m.innerW() - 10
+	if budget < 24 {
+		budget = 24
+	}
+	scanW := budget * 6 / 10
+	infoW := budget - scanW
+
 	// Panel de Escaneo Principal
 	scanBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("63")).
 		Padding(1).
-		Width(m.Width / 2).
+		Width(scanW).
 		Render(lipgloss.JoinVertical(lipgloss.Left,
 			"🔍 ESCANEANDO...",
 			"",
@@ -92,7 +145,7 @@ func (m Model) viewScanning() (string, string) {
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1).
-		Width(m.Width / 3).
+		Width(infoW).
 		Render(lastItem)
 
 	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, scanBox, "  ", infoBox)
@@ -102,47 +155,145 @@ func (m Model) viewScanning() (string, string) {
 		status = "\n" + styles.Gray.Render("💡 "+m.StatusMsg)
 	}
 
+	// Indicador de filtro de categorías activo.
+	var categoryIndicator string
+	if len(m.FilterCategories) > 0 {
+		active := len(m.ActiveCategoryIDs)
+		if active == 0 {
+			categoryIndicator = "\n" + styles.Gray.Render("⚡ Webhook: sin filtro de categorías (c: configurar)")
+		} else {
+			categoryIndicator = "\n" + styles.Green.Render(fmt.Sprintf("⚡ Webhook: %d categoría(s) activa(s) (c: configurar)", active))
+		}
+	}
+
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		sessionInfo,
 		"",
 		mainContent,
 		status,
+		categoryIndicator,
 	)
 
-	help := styles.HelpStyle.Render("tab: ver totales • e: exportar • esc: menú")
+	var help string
+	if m.LastScanned != nil {
+		help = styles.HelpStyle.Render("tab: ver totales  +: suma rápida  c: categorías webhook  e: exportar  esc: menú  ?: ayuda")
+	} else {
+		help = styles.HelpStyle.Render("tab: ver totales  c: categorías webhook  e: exportar  esc: menú  ?: ayuda")
+	}
+	return body, help
+}
+
+func (m Model) viewQuickAdd() (string, string) {
+	title := styles.SelectedStyle.Render("⚡ SUMA RÁPIDA")
+
+	var productInfo string
+	if m.LastScanned != nil {
+		productInfo = lipgloss.JoinVertical(lipgloss.Left,
+			styles.Green.Render("Producto:"),
+			styles.SelectedStyle.Render("  "+m.LastScanned.Name),
+			styles.Gray.Render(fmt.Sprintf("  Barcode: %s", m.LastScanned.Barcode)),
+			styles.Purple.Render(fmt.Sprintf("  Total actual: %d", m.LastScanned.Quantity)),
+		)
+	}
+
+	hint := styles.Gray.Render("Cantidades comunes: 5 · 10 · 20 · 50 · 100")
+
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		productInfo,
+		"",
+		"Cantidad a agregar:",
+		"",
+		m.QuickAddInput.View(),
+		"",
+		hint,
+	)
+
+	help := styles.HelpStyle.Render("enter: confirmar  esc: cancelar")
+	return body, help
+}
+
+func (m Model) viewSyncConfirm() (string, string) {
+	title := styles.TitleStyle.Render("Modo de Sincronización con Loyverse")
+
+	sessionCount := len(m.SyncModel.SessionIDs)
+	info := styles.Gray.Render(fmt.Sprintf("%d sesión(es) seleccionada(s) para sincronizar.", sessionCount))
+
+	options := []struct {
+		label string
+		desc  string
+	}{
+		{
+			label: "Reemplazar stock",
+			desc:  "Sobreescribe el stock en Loyverse con los conteos del inventario local.",
+		},
+		{
+			label: "Sumar al stock",
+			desc:  "Suma los conteos locales al stock actual en Loyverse (útil tras ventas).",
+		},
+	}
+
+	var rows []string
+	for i, opt := range options {
+		cursor := "  "
+		label := opt.label
+		desc := styles.Gray.Render("  " + opt.desc)
+		if m.Cursor == i {
+			cursor = styles.Blue.Render("▸ ")
+			label = styles.SelectedStyle.Render(label)
+		}
+		rows = append(rows, cursor+label, desc)
+	}
+
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		info,
+		"",
+		strings.Join(rows, "\n"),
+	)
+
+	help := styles.HelpStyle.Render("↑↓: navegar  enter: confirmar  esc: volver")
 	return body, help
 }
 
 func (m Model) viewHistory() (string, string) {
 	title := styles.Purple.Render(fmt.Sprintf("📜 HISTORIAL: %s", m.ActiveSession.Name))
 
-	contentWidth := m.Width - 10
-	if contentWidth < 30 {
-		contentWidth = 30
-	}
+	contentWidth := m.innerW()
 
-	// Altura fija para el cuadro de contenido (header + footer + márgenes)
-	contentHeight := m.Height - 12
-	if contentHeight < 5 {
-		contentHeight = 5
+	// staticLines = título(1) + gap(1) + searchBar(1 inactiva / 2 activa) + gap(1)
+	staticLines := 4
+	if m.HistorySearchActive {
+		staticLines = 5 // +1 por la línea de summary
+	}
+	contentHeight := m.listH(staticLines)
+
+	filtered := m.filteredHistory()
+
+	nameWidth := contentWidth / 3
+	if nameWidth < 10 {
+		nameWidth = 10
 	}
 
 	var rows []string
-	if len(m.History) == 0 {
-		rows = append(rows, styles.Gray.Render("  (Sin movimientos)"))
+	if len(filtered) == 0 {
+		if m.HistorySearchActive {
+			rows = append(rows, styles.Gray.Render("  (Sin resultados para la búsqueda)"))
+		} else {
+			rows = append(rows, styles.Gray.Render("  (Sin movimientos)"))
+		}
 	} else {
-		for i, r := range m.History {
+		for i, r := range filtered {
 			cursor := "  "
-			icon := "📦"
+			icon := "+"
+			qty := styles.Green.Render(fmt.Sprintf("%+d", r.Quantity))
 			if r.Quantity < 0 {
-				icon = "🛒"
+				icon = "-"
+				qty = styles.Red.Render(fmt.Sprintf("%+d", r.Quantity))
 			}
-
-			nameWidth := contentWidth / 3
-			if nameWidth < 10 {
-				nameWidth = 10
-			}
-			row := fmt.Sprintf("%s %-*s | %4d | %s", icon, nameWidth, r.Name, r.Quantity, r.Barcode)
+			row := fmt.Sprintf("%s %-*s | %s | %s", icon, nameWidth, r.Name, qty, r.Barcode)
 			if m.Cursor == i {
 				cursor = styles.Blue.Render("▸ ")
 				rows = append(rows, cursor+styles.SelectedStyle.Render(row))
@@ -152,116 +303,261 @@ func (m Model) viewHistory() (string, string) {
 		}
 	}
 
-	// Aplicar scroll y recortar al tamaño disponible
 	visibleRows := m.getVisibleRows(rows, m.Cursor, &m.HistoryScrollOffset, contentHeight)
-
-	// Cuadro con altura fija para evitar crecimiento infinito
 	historyBox := lipgloss.NewStyle().
 		Width(contentWidth).
 		Height(contentHeight).
 		Render(strings.Join(visibleRows, "\n"))
 
+	// Construir la barra de búsqueda y el summary
+	var searchBar string
+	if m.HistorySearchActive {
+		total := 0
+		for _, r := range filtered {
+			total += r.Quantity
+		}
+		summary := styles.Gray.Render(fmt.Sprintf("  %d registros · total: %d unidades", len(filtered), total))
+		searchBar = lipgloss.JoinVertical(lipgloss.Left,
+			styles.Blue.Render("/ ")+m.HistorySearch.View(),
+			summary,
+		)
+	} else {
+		searchBar = styles.Gray.Render("/: buscar")
+	}
+
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		title,
+		"",
+		searchBar,
 		"",
 		historyBox,
 	)
 
-	help := styles.HelpStyle.Render("tab: volver a escaneo • d: borrar • ↑↓ navegar • esc: menú")
+	help := styles.HelpStyle.Render("tab: escaneo  ↑↓: navegar  /: buscar  d: borrar  esc: menú  ?: ayuda")
+	if m.HistorySearchActive {
+		help = styles.HelpStyle.Render("↑↓: navegar resultados  esc: cerrar búsqueda  tab: ir a escaneo")
+	}
+	if m.PendingDelete {
+		help = styles.WarnStyle.Render("⚠  d: confirmar borrado   cualquier otra tecla: cancelar")
+	}
 	return body, help
 }
 
 func (m Model) viewLoyverse() (string, string) {
 	title := styles.Purple.Render(fmt.Sprintf("📊 TOTALES Y LOYVERSE: %s", m.ActiveSession.Name))
 
-	panelWidth := (m.Width - 16) / 2
-	if panelWidth < 20 {
-		panelWidth = 20
-	}
+	contentWidth := m.innerW()
+	// Body Loyverse: título(1) + gap(1) + tabbar(1) + gap(1) = 4 líneas estáticas.
+	// El resto es el área del tab activo (que internamente resta header y search).
+	contentHeight := m.listH(4)
 
-	// Altura fija para los paneles (header + footer + márgenes)
-	panelHeight := m.Height - 12
-	if panelHeight < 5 {
-		panelHeight = 5
-	}
-
-	// Panel izquierdo: Tabla de totales por producto
-	var totalsRows []string
-	totalsRows = append(totalsRows, styles.Green.Render("📦 PRODUCTO | CANT"))
-	if len(m.Totals) == 0 {
-		totalsRows = append(totalsRows, styles.Gray.Render("  (Sin productos contados)"))
+	// Barra de tabs
+	const tabTotales = " TOTALES "
+	const tabEventos = " EVENTOS "
+	var tab0, tab1 string
+	if m.LoyverseSubTab == 0 {
+		tab0 = styles.TitleStyle.Render(tabTotales)
+		tab1 = styles.Gray.Render(tabEventos)
 	} else {
-		nameWidth := panelWidth - 12
-		if nameWidth < 8 {
-			nameWidth = 8
-		}
-		for _, t := range m.Totals {
-			row := fmt.Sprintf("  %-*s | %d", nameWidth, t.Name, t.Quantity)
-			totalsRows = append(totalsRows, row)
-		}
+		tab0 = styles.Gray.Render(tabTotales)
+		tab1 = styles.TitleStyle.Render(tabEventos)
 	}
-	// Recortar al tamaño disponible
-	if len(totalsRows) > panelHeight {
-		totalsRows = totalsRows[:panelHeight]
-	}
-	totalsBox := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("63")).
-		Padding(1).
-		Width(panelWidth).
-		Height(panelHeight).
-		Render(strings.Join(totalsRows, "\n"))
+	tabBar := lipgloss.JoinHorizontal(lipgloss.Top, tab0, "  ", tab1)
 
-	// Panel derecho: Eventos de Loyverse con scroll
-	var eventsRows []string
-	eventsRows = append(eventsRows, styles.Green.Render("🛒 EVENTOS LOYVERSE"))
-	if len(m.LoyverseEvents) == 0 {
-		eventsRows = append(eventsRows, styles.Gray.Render("  (Sin eventos de Loyverse)"))
+	// Contenido del tab activo
+	var tabContent string
+	if m.LoyverseSubTab == 0 {
+		tabContent = m.viewLoyverseTotals(contentWidth, contentHeight)
 	} else {
-		nameWidth := panelWidth / 3
-		if nameWidth < 8 {
-			nameWidth = 8
-		}
-		for i, e := range m.LoyverseEvents {
-			icon := "🔻"
-			if e.Quantity > 0 {
-				icon = "🔺"
-			}
-			groupLabel := e.GroupName
-			if groupLabel == "" {
-				groupLabel = "sin grupo"
-			}
-			cursor := "  "
-			if m.Cursor == i {
-				cursor = styles.Blue.Render("▸ ")
-			}
-			row := fmt.Sprintf("%s%s %-*s | %3d | [%s]", cursor, icon, nameWidth, e.Name, e.Quantity, groupLabel)
-			eventsRows = append(eventsRows, row)
-		}
+		tabContent = m.viewLoyverseEvents(contentWidth, contentHeight)
 	}
-	visibleEvents := m.getVisibleRows(eventsRows, m.Cursor, &m.LoyverseScrollOffset, panelHeight-2)
-	eventsBox := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(1).
-		Width(panelWidth).
-		Height(panelHeight).
-		Render(strings.Join(visibleEvents, "\n"))
-
-	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, totalsBox, "  ", eventsBox)
 
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		title,
 		"",
-		mainContent,
+		tabBar,
+		"",
+		tabContent,
 	)
 
-	help := styles.HelpStyle.Render("tab: ver historial • d: borrar • ↑↓ navegar • s: sync • esc: menú")
+	var help string
+	if m.TotalsSearchActive {
+		help = styles.HelpStyle.Render("↑↓: navegar resultados  esc: cerrar búsqueda  tab: ir a historial")
+	} else {
+		help = styles.HelpStyle.Render("tab: historial  ←→: cambiar panel  ↑↓: navegar  /: buscar  d: borrar evento  esc: menú  ?: ayuda")
+	}
+	if m.PendingDelete {
+		help = styles.WarnStyle.Render("⚠  d: confirmar borrado de evento   cualquier otra tecla: cancelar")
+	}
 	return body, help
+}
+
+// viewLoyverseTotals renderiza el tab de totales con scroll completo y search bar.
+func (m Model) viewLoyverseTotals(contentWidth, contentHeight int) string {
+	nameWidth := contentWidth - 12
+	if nameWidth < 10 {
+		nameWidth = 10
+	}
+
+	filtered := m.filteredTotals()
+
+	header := styles.Green.Render(fmt.Sprintf("  %-*s | CANT", nameWidth, "PRODUCTO"))
+	var rows []string
+	if len(filtered) == 0 {
+		if m.TotalsSearchActive {
+			rows = append(rows, styles.Gray.Render("  (Sin resultados para la búsqueda)"))
+		} else {
+			rows = append(rows, styles.Gray.Render("  (Sin productos contados)"))
+		}
+	} else {
+		for i, t := range filtered {
+			cursor := "  "
+			qty := fmt.Sprintf("%4d", t.Quantity)
+			if t.Quantity < 0 {
+				qty = styles.Red.Render(fmt.Sprintf("%4d", t.Quantity))
+			}
+			row := fmt.Sprintf("%-*s | %s", nameWidth, t.Name, qty)
+			if m.TotalsCursor == i {
+				cursor = styles.Blue.Render("▸ ")
+				rows = append(rows, cursor+styles.SelectedStyle.Render(row))
+			} else {
+				rows = append(rows, cursor+row)
+			}
+		}
+	}
+
+	// listHeight descuenta: header(1) + searchLine(1 inactiva / 2 activa)
+	listHeight := contentHeight - 2 // header(1) + "/: buscar"(1)
+	var searchLine string
+	if m.TotalsSearchActive {
+		listHeight = contentHeight - 3 // header(1) + input(1) + summary(1)
+		total := 0
+		for _, t := range filtered {
+			total += t.Quantity
+		}
+		summary := styles.Gray.Render(fmt.Sprintf("  %d productos · total: %d unidades", len(filtered), total))
+		searchLine = lipgloss.JoinVertical(lipgloss.Left,
+			styles.Blue.Render("/ ")+m.TotalsSearch.View(),
+			summary,
+		)
+	} else {
+		searchLine = styles.Gray.Render("/: buscar")
+	}
+	if listHeight < 1 {
+		listHeight = 1
+	}
+
+	visibleRows := m.getVisibleRows(rows, m.TotalsCursor, &m.TotalsScrollOffset, listHeight)
+
+	box := lipgloss.NewStyle().
+		Width(contentWidth).
+		Height(contentHeight).
+		Render(lipgloss.JoinVertical(lipgloss.Left,
+			header,
+			searchLine,
+			strings.Join(visibleRows, "\n"),
+		))
+
+	return box
+}
+
+// viewLoyverseEvents renderiza el tab de eventos Loyverse con scroll completo.
+func (m Model) viewLoyverseEvents(contentWidth, contentHeight int) string {
+	nameWidth := contentWidth/2 - 6
+	if nameWidth < 10 {
+		nameWidth = 10
+	}
+
+	header := styles.Green.Render(fmt.Sprintf("  %-*s | CANT | GRUPO", nameWidth, "PRODUCTO"))
+	var rows []string
+	if len(m.LoyverseEvents) == 0 {
+		rows = append(rows, styles.Gray.Render("  (Sin eventos de Loyverse)"))
+	} else {
+		for i, e := range m.LoyverseEvents {
+			icon := "▼"
+			if e.Quantity > 0 {
+				icon = "▲"
+			}
+			groupLabel := e.GroupName
+			if groupLabel == "" {
+				groupLabel = "—"
+			}
+			cursor := "  "
+			row := fmt.Sprintf("%s %-*s | %4d | %s", icon, nameWidth, e.Name, e.Quantity, groupLabel)
+			if m.Cursor == i {
+				cursor = styles.Blue.Render("▸ ")
+				rows = append(rows, cursor+styles.SelectedStyle.Render(row))
+			} else {
+				rows = append(rows, cursor+row)
+			}
+		}
+	}
+
+	visibleRows := m.getVisibleRows(rows, m.Cursor, &m.LoyverseScrollOffset, contentHeight-1)
+
+	box := lipgloss.NewStyle().
+		Width(contentWidth).
+		Height(contentHeight).
+		Render(lipgloss.JoinVertical(lipgloss.Left, header, strings.Join(visibleRows, "\n")))
+
+	return box
 }
 
 func (m Model) viewSyncLoyverse() (string, string) {
 	m.SyncModel.Width = m.Width
 	body := m.SyncModel.View()
 	return body, ""
+}
+
+func (m Model) viewHelp() (string, string) {
+	title := styles.SelectedStyle.Render("AYUDA — ATAJOS DE TECLADO")
+
+	sec := func(name string) string {
+		return "\n" + styles.Purple.Render("── "+name)
+	}
+	row := func(k, desc string) string {
+		return fmt.Sprintf("  %-20s %s", styles.Blue.Render(k), styles.Gray.Render(desc))
+	}
+
+	lines := []string{
+		title,
+		sec("LISTA DE SESIONES"),
+		row("n", "nueva sesión"),
+		row("r", "renombrar seleccionada"),
+		row("enter", "entrar a sesión"),
+		row("e", "exportar a CSV"),
+		row("d d", "borrar sesión (doble d)"),
+		row("espacio", "seleccionar para sync"),
+		row("s", "sync sesiones seleccionadas"),
+		row("q", "salir"),
+		sec("ESCANEO"),
+		row("enter", "registrar producto escaneado"),
+		row("+", "suma rápida de cantidad"),
+		row("tab", "ver totales y eventos Loyverse"),
+		row("e", "exportar sesión a CSV"),
+		row("esc", "volver al menú"),
+		sec("HISTORIAL"),
+		row("↑↓ / k/j", "navegar"),
+		row("/", "activar búsqueda por nombre"),
+		row("d d", "borrar escaneo (doble d)"),
+		row("tab", "ir a pantalla de escaneo"),
+		row("esc", "volver al menú (o cerrar búsqueda)"),
+		sec("TOTALES / EVENTOS LOYVERSE"),
+		row("←→ / h/l", "cambiar entre Totales y Eventos"),
+		row("↑↓ / k/j", "navegar"),
+		row("/", "buscar en tab Totales"),
+		row("d d", "borrar evento Loyverse (doble d)"),
+		row("tab", "ir a historial"),
+		row("esc", "volver al menú (o cerrar búsqueda)"),
+		sec("SYNC LOYVERSE"),
+		row("enter", "iniciar sincronización"),
+		row("esc", "volver a lista de sesiones"),
+		sec("GLOBAL"),
+		row("?", "abrir / cerrar esta ayuda"),
+		row("ctrl+c", "salir forzado"),
+	}
+
+	body := strings.Join(lines, "\n")
+	help := styles.HelpStyle.Render("cualquier tecla: cerrar")
+	return body, help
 }

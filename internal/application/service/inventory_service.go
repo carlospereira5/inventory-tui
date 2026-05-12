@@ -24,6 +24,7 @@ type InventoryService struct {
 	inventory         repository.InventoryRepository
 	loyverseEvents    repository.LoyverseEventRepository
 	groups            repository.CustomGroupRepository
+	activeCategories  repository.ActiveCategoryRepository
 	csvStorage        *storage.CSVStorage
 	onSessionActivate func(sessionID int)
 }
@@ -36,13 +37,30 @@ func NewInventoryService(
 	i repository.InventoryRepository,
 	l repository.LoyverseEventRepository,
 	g repository.CustomGroupRepository,
+	ac repository.ActiveCategoryRepository,
 	csv *storage.CSVStorage,
 ) *InventoryService {
-	return &InventoryService{db: db, products: p, sessions: s, inventory: i, loyverseEvents: l, groups: g, csvStorage: csv}
+	return &InventoryService{db: db, products: p, sessions: s, inventory: i, loyverseEvents: l, groups: g, activeCategories: ac, csvStorage: csv}
 }
 
-// LoadCatalog busca e importa el archivo CSV en la base de datos de productos.
+// LoadCatalog importa el catálogo de productos.
+// Estrategia: si LOYVERSE_TOKEN está disponible, carga directo desde la API de Loyverse.
+// Si no hay token (o falla la conexión), cae a CSV como modo legacy.
 func (s *InventoryService) LoadCatalog(ctx context.Context) (int, string, error) {
+	token := os.Getenv("LOYVERSE_TOKEN")
+	if token != "" {
+		client, err := loyverse.NewClient(token)
+		if err == nil {
+			count, err := s.LoadCatalogFromLoyverse(ctx, client)
+			if err != nil {
+				slog.Warn("catálogo Loyverse fallido, usando CSV", "err", err)
+			} else {
+				return count, "Loyverse API", nil
+			}
+		}
+	}
+
+	// Fallback: modo legacy CSV
 	file, err := s.csvStorage.FindCSVInRoot()
 	if err != nil {
 		return 0, "", err
@@ -105,28 +123,46 @@ func (s *InventoryService) DeleteSession(ctx context.Context, id int) error {
 	return s.sessions.Delete(ctx, id)
 }
 
+// RenameSession cambia el nombre de una sesión existente.
+func (s *InventoryService) RenameSession(ctx context.Context, id int, name string) error {
+	return s.sessions.UpdateName(ctx, id, name)
+}
+
 // ScanLoyverseSale descuenta del stock de la sesión cuando Loyverse reporta una venta.
-// name debe coincidir exactamente con el nombre del producto en el catálogo CSV.
-// Solo actúa si el producto pertenece a un grupo personalizado o si fue escaneado manualmente.
+// Filtrado por categorías activas (primario) o grupos personalizados (legacy/CSV).
+//
+// Lógica de filtrado:
+//  1. Si el producto tiene category_id → usa active_categories (Loyverse nativo).
+//     Solo registra el evento si la categoría está activa.
+//  2. Si el producto no tiene category_id (vino de CSV) → legacy: verifica custom_groups.
 func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, name string, delta int) error {
-	// Bug 3 fix: el webhook expone item_name, no barcode. Resolvemos el producto por nombre.
 	p, err := s.products.FindByName(ctx, name)
 	if err != nil {
 		return err
 	}
 	if p == nil {
-		return nil // producto no encontrado en catálogo — mismatch de nombres, ignorar silenciosamente
+		return nil // producto no encontrado en catálogo — ignorar silenciosamente
 	}
 
-	// Verificar si el producto pertenece a algún grupo personalizado
-	groups, err := s.groups.GetGroupsForProduct(ctx, p.ID)
-	if err != nil {
-		return fmt.Errorf("error al verificar grupos del producto: %w", err)
-	}
-
-	// Si el producto no pertenece a ningún grupo, no aplicar descuento
-	if len(groups) == 0 {
-		return nil
+	if p.CategoryID != "" {
+		// Camino primario: filtrado por categorías Loyverse.
+		active, err := s.activeCategories.IsActive(ctx, p.CategoryID)
+		if err != nil {
+			return fmt.Errorf("verificando categoría activa: %w", err)
+		}
+		if !active {
+			slog.Debug("webhook: categoría no activa, ignorando venta", "name", name, "category_id", p.CategoryID)
+			return nil
+		}
+	} else {
+		// Camino legacy: filtrado por grupos personalizados (CSV).
+		groups, err := s.groups.GetGroupsForProduct(ctx, p.ID)
+		if err != nil {
+			return fmt.Errorf("error al verificar grupos del producto: %w", err)
+		}
+		if len(groups) == 0 {
+			return nil
+		}
 	}
 
 	source := "LOYVERSE_SALE"
@@ -134,6 +170,16 @@ func (s *InventoryService) ScanLoyverseSale(ctx context.Context, sessionID int, 
 		source = "LOYVERSE_REFUND"
 	}
 	return s.loyverseEvents.AddEvent(ctx, sessionID, p.Barcode, delta, source)
+}
+
+// AddQuickScan agrega una cantidad arbitraria de un producto ya identificado.
+// A diferencia de ScanProduct, no busca por barcode en el catálogo — el producto
+// ya fue resuelto previamente. Devuelve el record actualizado con el total acumulado.
+func (s *InventoryService) AddQuickScan(ctx context.Context, sessionID int, barcode string, quantity int) (*entity.Record, error) {
+	if err := s.inventory.AddScan(ctx, sessionID, barcode, quantity, "SCAN"); err != nil {
+		return nil, err
+	}
+	return s.inventory.GetRecord(ctx, sessionID, barcode)
 }
 
 // DeleteScan elimina un evento de escaneo individual por su ID.
@@ -169,22 +215,25 @@ func (s *InventoryService) ActivateSession(sessionID int) {
 }
 
 // SyncWithLoyverse sincroniza el inventario local con la API de Loyverse.
-// Obtiene el catálogo, mapea productos locales y envía el stock calculado.
-// El StoreID se obtiene desde GET /inventory; para variants sin stock previo,
-// se usa la primera tienda de GET /stores como fallback.
-//
-// Optimización: las fases de fetch independientes (catálogo, inventario, stores,
-// stock local) se ejecutan en paralelo con errgroup para reducir el tiempo total.
-func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.SyncResult, error) {
+// Crea el cliente desde LOYVERSE_TOKEN y delega a SyncWithClient.
+func (s *InventoryService) SyncWithLoyverse(ctx context.Context, sessionIDs []int, mode loyverse.SyncMode) (*loyverse.SyncResult, error) {
 	token := os.Getenv("LOYVERSE_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("LOYVERSE_TOKEN env var not set")
 	}
-
 	client, err := loyverse.NewClient(token)
 	if err != nil {
 		return nil, fmt.Errorf("creating Loyverse client: %w", err)
 	}
+	return s.SyncWithClient(ctx, client, sessionIDs, mode)
+}
+
+// SyncWithClient ejecuta el sync completo con un cliente Loyverse ya construido.
+// Expuesto para tests: permite apuntar a un httptest.Server en lugar de la API real.
+//
+// Optimización: las fases de fetch independientes (catálogo, inventario, stores,
+// stock local) se ejecutan en paralelo con errgroup para reducir el tiempo total.
+func (s *InventoryService) SyncWithClient(ctx context.Context, client *loyverse.Client, sessionIDs []int, mode loyverse.SyncMode) (*loyverse.SyncResult, error) {
 
 	// Fase paralela: fetches independientes con errgroup
 	var items []loyverse.LoyverseItem
@@ -230,7 +279,7 @@ func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.Sync
 	g.Go(func() error {
 		start := time.Now()
 		var err error
-		stockSummary, err = s.inventory.GetStockSummary(gCtx)
+		stockSummary, err = s.inventory.GetStockSummary(gCtx, sessionIDs)
 		if err != nil {
 			return fmt.Errorf("calculating local stock: %w", err)
 		}
@@ -247,6 +296,13 @@ func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.Sync
 	start := time.Now()
 	variantMap := loyverse.BuildVariantMap(items)
 	storeMap := loyverse.BuildStoreMap(inventoryRecords)
+
+	// En modo suma, construimos el mapa de stock actual para sumar a los conteos locales.
+	var currentStockMap map[string]float64
+	if mode == loyverse.SyncModeAdd {
+		currentStockMap = loyverse.BuildCurrentStockMap(inventoryRecords)
+		slog.Info("sync: modo suma activado", "productos_con_stock_previo", len(currentStockMap))
+	}
 
 	var defaultStoreID string
 	if len(stores) > 0 {
@@ -283,13 +339,19 @@ func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.Sync
 			storeID = defaultStoreID
 		}
 
+		stockAfter := quantity
+		if mode == loyverse.SyncModeAdd {
+			key := info.VariantID + "|" + storeID
+			stockAfter = currentStockMap[key] + quantity
+		}
+
 		levels = append(levels, loyverse.InventoryLevel{
 			VariantID:  info.VariantID,
 			StoreID:    storeID,
-			StockAfter: quantity,
+			StockAfter: stockAfter,
 		})
 	}
-	slog.Info("sync: mapping completed", "levels", len(levels), "unmapped", len(unmapped), "duration", time.Since(start).Round(time.Millisecond))
+	slog.Info("sync: mapping completed", "mode", mode, "levels", len(levels), "unmapped", len(unmapped), "duration", time.Since(start).Round(time.Millisecond))
 
 	// Fase final: batch update (ya tiene workers internos)
 	start = time.Now()
@@ -301,6 +363,7 @@ func (s *InventoryService) SyncWithLoyverse(ctx context.Context) (*loyverse.Sync
 		Total:   len(stockSummary),
 		Success: success,
 		Failed:  failed + len(syncErrors),
+		Mode:    mode,
 		Errors:  append(syncErrors, batchErrors...),
 	}
 
